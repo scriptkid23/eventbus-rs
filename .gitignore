@@ -1,1 +1,47 @@
+# Rust build artifacts
 /target
+**/target/
+
+# Cargo lock — keep for binaries, omit for libraries (we are a library workspace)
+# Cargo.lock is intentionally NOT ignored so examples and integration tests are reproducible
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# SQLite fallback buffer databases (local dev artifacts)
+*.db
+*.db-shm
+*.db-wal
+
+# Benchmark output
+criterion/
+
+# Coverage reports
+tarpaulin-report.html
+lcov.info
+coverage/
+
+# Generated docs (cargo doc output)
+/doc
+
+# trybuild snapshot files that should not be committed when auto-generated
+# (remove this line if you want to commit stderr snapshots)
+# tests/compile_fail/*.stderr
+
+# Git worktrees
+.worktrees/
