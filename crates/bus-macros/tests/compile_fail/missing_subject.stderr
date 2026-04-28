@@ -1,0 +1,5 @@
+error: missing #[event(subject = "...")] attribute
+ --> tests/compile_fail/missing_subject.rs:6:8
+  |
+6 | struct BadEvent {
+  |        ^^^^^^^^

@@ -1,0 +1,5 @@
+error: #[derive(Event)] requires `id` to have type `bus_core::MessageId`
+ --> tests/compile_fail/wrong_id_type.rs:7:5
+  |
+7 |     id: String,
+  |     ^^^^^^^^^^

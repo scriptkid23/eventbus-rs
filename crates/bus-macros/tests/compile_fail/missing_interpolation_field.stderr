@@ -1,0 +1,5 @@
+error: unknown field in subject template: `order_id`
+ --> tests/compile_fail/missing_interpolation_field.rs:7:8
+  |
+7 | struct BadEvent {
+  |        ^^^^^^^^

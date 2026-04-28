@@ -1,0 +1,5 @@
+error: #[derive(Event)] requires a field named `id: bus_core::MessageId`
+ --> tests/compile_fail/missing_id.rs:6:8
+  |
+6 | struct BadEvent {
+  |        ^^^^^^^^
