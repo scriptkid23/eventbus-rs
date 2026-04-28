@@ -40,6 +40,14 @@
 **Files:**
 - Modify: `Cargo.toml`
 
+- [ ] **Step 0: Verify Rust toolchain is >= 1.85.0 (required for edition 2024)**
+
+```bash
+rustc --version
+```
+
+Expected: `rustc 1.85.0` or higher. If older, run `rustup update stable` before continuing.
+
 - [ ] **Step 1: Replace root Cargo.toml with workspace manifest**
 
 ```toml
@@ -59,7 +67,7 @@ repository = "https://github.com/1hoodlabs/eventbus-rs"
 
 [workspace.dependencies]
 async-trait  = "0.1"
-bytes        = "1.5"
+# bytes added in Plan 2 (bus-nats uses it for NATS message payloads)
 serde        = { version = "1", features = ["derive"] }
 serde_json   = "1"
 thiserror    = "1"
@@ -183,12 +191,14 @@ fn id_roundtrips_through_string() {
 
 #[test]
 fn ids_are_monotonically_increasing() {
-    let ids: Vec<MessageId> = (0..100).map(|_| MessageId::new()).collect();
-    // UUIDv7 is time-ordered, string comparison works
-    let strings: Vec<String> = ids.iter().map(|id| id.to_string()).collect();
-    let mut sorted = strings.clone();
-    sorted.sort();
-    assert_eq!(strings, sorted, "MessageIds must be monotonically increasing");
+    // Generate across two distinct milliseconds to avoid same-ms sub-sort ambiguity.
+    // uuid crate uses a per-ms monotonic counter (RFC 9562 §6.2), but testing across
+    // a ms boundary is the only portable guarantee.
+    let a = MessageId::new();
+    std::thread::sleep(std::time::Duration::from_millis(2));
+    let b = MessageId::new();
+    assert!(a < b, "earlier MessageId must sort before later one");
+    assert!(a.to_string() < b.to_string(), "string representation must preserve order");
 }
 
 #[test]
@@ -214,7 +224,7 @@ use std::{fmt, str::FromStr};
 use uuid::Uuid;
 
 /// Newtype wrapper over UUIDv7 — monotonic, B-tree friendly, used as Nats-Msg-Id
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct MessageId(Uuid);
 
 impl MessageId {
@@ -475,7 +485,10 @@ pub struct PubReceipt {
     pub buffered: bool,
 }
 
-/// Publishes events to the event bus
+/// Publishes events to the event bus.
+///
+/// Note: generic methods (`publish<E>`, `publish_batch<E>`) make this trait NOT object-safe —
+/// `dyn Publisher` is not supported. Plan 2 introduces type-erased publish helpers if needed.
 #[async_trait]
 pub trait Publisher: Send + Sync {
     /// Publish a single event. Attaches `Nats-Msg-Id` header from `event.message_id()`.
@@ -1020,12 +1033,13 @@ fn main() {}
 Create `crates/bus-macros/tests/compile_fail/missing_subject.rs`:
 
 ```rust
+use bus_core::MessageId;
 use bus_macros::Event;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Event)]
 struct BadEvent {
-    id: bus_core::MessageId,
+    id: MessageId,
 }
 
 fn main() {}
@@ -1050,7 +1064,7 @@ fn compile_fail_cases() {
 cargo test -p bus-macros --test compile_fail_tests 2>&1
 ```
 
-Expected: first run may fail with "stderr mismatch" — this generates the `.stderr` snapshot files in `crates/bus-macros/tests/compile_fail/`. Rerun:
+Expected: first run may fail with "stderr mismatch" — this generates the `.stderr` snapshot files in `crates/bus-macros/tests/compile_fail/`. Rerun to confirm they are now locked in:
 
 ```bash
 cargo test -p bus-macros --test compile_fail_tests
@@ -1058,7 +1072,15 @@ cargo test -p bus-macros --test compile_fail_tests
 
 Expected: `test compile_fail_cases ... ok`
 
-- [ ] **Step 6: Commit**
+Verify the snapshot files were created (CI requires them to be committed):
+
+```bash
+ls crates/bus-macros/tests/compile_fail/*.stderr
+```
+
+Expected: `missing_id.stderr` and `missing_subject.stderr` both present.
+
+- [ ] **Step 6: Commit (including `.stderr` snapshots — required for CI)**
 
 ```bash
 git add crates/bus-macros/
