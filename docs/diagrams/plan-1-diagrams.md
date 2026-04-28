@@ -67,79 +67,74 @@ graph LR
 ```mermaid
 classDiagram
     class MessageId {
-        +Uuid inner
+        -Uuid inner
         +new() MessageId
-        +from_uuid(u: Uuid) MessageId
-        +as_uuid() &Uuid
+        +from_uuid(u Uuid) MessageId
+        +as_uuid() Uuid
         +Display
         +FromStr
-        +PartialOrd / Ord
-        +Serialize / Deserialize
+        +PartialOrd Ord
+        +Serialize Deserialize
     }
 
     class Event {
         <<trait>>
-        +subject(&self) Cow~str~
-        +message_id(&self) MessageId
-        +aggregate_type() &'static str
-        --
-        requires: Serialize + DeserializeOwned
-        requires: Send + Sync + 'static
+        +subject(self) Cow~str~
+        +message_id(self) MessageId
+        +aggregate_type() str
+        +bounds Serialize DeserializeOwned Send Sync
     }
 
     class PubReceipt {
-        +stream: String
-        +sequence: u64
-        +duplicate: bool
-        +buffered: bool
+        +stream String
+        +sequence u64
+        +duplicate bool
+        +buffered bool
     }
 
     class Publisher {
         <<trait>>
-        +publish(E: Event) Result~PubReceipt, BusError~
-        +publish_batch(events: &[E]) Result~Vec~PubReceipt~, BusError~
-        --
-        requires: Send + Sync
+        +publish(self, event E) Result~PubReceipt~
+        +publish_batch(self, events) Result~Vec~
+        +bounds Send Sync
     }
 
     class HandlerCtx {
-        +msg_id: MessageId
-        +stream_seq: u64
-        +delivered: u64
-        +subject: String
-        +span: Span
+        +msg_id MessageId
+        +stream_seq u64
+        +delivered u64
+        +subject String
+        +span Span
     }
 
     class EventHandler {
         <<trait>>
-        +handle(ctx: HandlerCtx, event: E) Result~(), HandlerError~
-        --
-        requires: Send + Sync + 'static
+        +handle(ctx HandlerCtx, event E) Result~HandlerError~
+        +bounds Send Sync
     }
 
     class IdempotencyStore {
         <<trait>>
-        +try_insert(key: &MessageId, ttl: Duration) Result~bool, BusError~
-        +mark_done(key: &MessageId) Result~(), BusError~
-        --
-        requires: Send + Sync
+        +try_insert(key MessageId, ttl Duration) Result~bool~
+        +mark_done(key MessageId) Result
+        +bounds Send Sync
     }
 
     class BusError {
-        <<enum>>
-        Nats(String)
-        Publish(String)
-        Outbox(String)
-        Idempotency(String)
-        Serde(serde_json::Error)
-        Handler(HandlerError)
+        <<enumeration>>
+        Nats
+        Publish
+        Outbox
+        Idempotency
+        Serde
+        Handler
         NatsUnavailable
     }
 
     class HandlerError {
-        <<enum>>
-        Transient(String)
-        Permanent(String)
+        <<enumeration>>
+        Transient
+        Permanent
     }
 
     Event --> MessageId : message_id() returns

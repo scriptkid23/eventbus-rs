@@ -82,87 +82,80 @@ classDiagram
     class MessageId {
         -Uuid inner
         +new() MessageId
-        +from_uuid(u: Uuid) MessageId
-        +as_uuid() &Uuid
+        +from_uuid(u Uuid) MessageId
+        +as_uuid() Uuid
         +to_string() String
-        +from_str(s: &str) Result~MessageId~
-        +PartialOrd / Ord / Hash
-        +Serialize / Deserialize
+        +from_str(s str) Result~MessageId~
+        +PartialOrd Ord Hash
+        +Serialize Deserialize
     }
 
     class Event {
         <<trait>>
-        +subject(&self) Cow~str~
-        +message_id(&self) MessageId
-        +aggregate_type() &'static str
-        --
-        bounds: Serialize + DeserializeOwned
-        bounds: Send + Sync + 'static
+        +subject(self) Cow~str~
+        +message_id(self) MessageId
+        +aggregate_type() str
+        +bounds Serialize DeserializeOwned Send Sync
     }
 
     class PubReceipt {
-        +stream: String
-        +sequence: u64
-        +duplicate: bool
-        +buffered: bool
+        +stream String
+        +sequence u64
+        +duplicate bool
+        +buffered bool
     }
 
     class Publisher {
         <<trait>>
-        +publish~E:Event~(&self, event) Result~PubReceipt~
-        +publish_batch~E:Event~(&self, events) Result~Vec~PubReceipt~~
-        --
-        NOTE: not object-safe (generic methods)
-        bounds: Send + Sync
+        +publish(self, event E) Result~PubReceipt~
+        +publish_batch(self, events) Result~Vec~
+        +bounds Send Sync
     }
 
     class HandlerCtx {
-        +msg_id: MessageId
-        +stream_seq: u64
-        +delivered: u64
-        +subject: String
-        +span: tracing::Span
+        +msg_id MessageId
+        +stream_seq u64
+        +delivered u64
+        +subject String
+        +span Span
     }
 
     class EventHandler {
         <<trait>>
-        +handle(ctx: HandlerCtx, event: E) Result~(), HandlerError~
-        --
-        bounds: Send + Sync + 'static
+        +handle(ctx HandlerCtx, event E) Result~HandlerError~
+        +bounds Send Sync
     }
 
     class IdempotencyStore {
         <<trait>>
-        +try_insert(key: &MessageId, ttl: Duration) Result~bool~
-        +mark_done(key: &MessageId) Result~()~
-        --
-        MUST be atomic (INSERT ON CONFLICT,
-        KV.Create, SET NX)
-        bounds: Send + Sync
+        +try_insert(key MessageId, ttl Duration) Result~bool~
+        +mark_done(key MessageId) Result
+        +atomic INSERT_ON_CONFLICT or KV_Create or SET_NX
+        +bounds Send Sync
     }
 
     class BusError {
-        <<enum>>
-        Nats(String)
-        Publish(String)
-        Outbox(String)
-        Idempotency(String)
-        Serde(serde_json::Error)
-        Handler(HandlerError)
+        <<enumeration>>
+        Nats
+        Publish
+        Outbox
+        Idempotency
+        Serde
+        Handler
         NatsUnavailable
     }
 
     class HandlerError {
-        <<enum>>
-        Transient(String) → NAK + retry
-        Permanent(String) → Term + DLQ
+        <<enumeration>>
+        Transient - NAK retry
+        Permanent - Term DLQ
     }
 
     Event --> MessageId : message_id() returns
-    Publisher --> Event : generic over E: Event
+    Publisher --> Event : generic over E
     Publisher --> PubReceipt : returns on success
     Publisher --> BusError : returns on error
-    EventHandler --> Event : generic over E: Event
+    EventHandler --> Event : generic over E
     EventHandler --> HandlerCtx : receives
     EventHandler --> HandlerError : returns on failure
     IdempotencyStore --> MessageId : key type
@@ -312,7 +305,7 @@ flowchart TD
     DESER -->|Ok| HAND["handler.handle(ctx, event)"]
 
     HAND -->|Ok| DONE["mark_done(msg_id)<br/>→ double_ack"]
-    HAND -->|Err(Transient)| NAКB["NAK(backoff delay)<br/>1s → 5s → 30s → 5m"]
+    HAND -->|Err(Transient)| NAKB["NAK(backoff delay)<br/>1s → 5s → 30s → 5m"]
     HAND -->|Err(Permanent)| TERM2["AckTerm<br/>→ republish to DLQ stream"]
 
     style SKIP fill:#d4edda
@@ -320,7 +313,7 @@ flowchart TD
     style TERM1 fill:#f8d7da
     style TERM2 fill:#f8d7da
     style NAK1 fill:#fff3cd
-    style NAКB fill:#fff3cd
+    style NAKB fill:#fff3cd
 ```
 
 ---
@@ -361,36 +354,32 @@ stateDiagram-v2
 ```mermaid
 classDiagram
     class IdempotencyStore {
-        <<trait bus-core>>
-        +try_insert(key, ttl) Result~bool~
-        +mark_done(key) Result~()~
+        <<trait>>
+        +try_insert(key MessageId, ttl Duration) Result~bool~
+        +mark_done(key MessageId) Result
     }
 
     class NatsKvIdempotencyStore {
-        -kv::Store store
+        -store KvStore
         +new(js, max_age) Self
-        --
-        atomic: kv.create() fails if exists
-        bucket: "eventbus_processed"
-        feature: nats-kv-inbox
+        +atomic kv_create fails if exists
+        +bucket eventbus_processed
+        +feature nats-kv-inbox
     }
 
     class PostgresIdempotencyStore {
-        -PgPool pool
-        -String consumer
+        -pool PgPool
+        -consumer String
         +new(pool, consumer) Self
-        --
-        atomic: INSERT ON CONFLICT DO NOTHING
-        table: eventbus_inbox
-        keyed by: (consumer, message_id)
-        feature: postgres-inbox
+        +atomic INSERT_ON_CONFLICT_DO_NOTHING
+        +table eventbus_inbox
+        +feature postgres-inbox
     }
 
     class RedisIdempotencyStore {
         +new(client) Self
-        --
-        atomic: SET NX EX
-        feature: redis-inbox
+        +atomic SET_NX_EX
+        +feature redis-inbox
     }
 
     NatsKvIdempotencyStore ..|> IdempotencyStore
