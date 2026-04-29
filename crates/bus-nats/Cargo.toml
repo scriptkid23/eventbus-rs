@@ -19,6 +19,7 @@ async-nats  = { workspace = true }
 async-trait = { workspace = true }
 bus-core    = { path = "../bus-core" }
 bytes       = { workspace = true }
+futures-util = { workspace = true }
 redis       = { workspace = true, optional = true }
 serde_json  = { workspace = true }
 tokio       = { workspace = true }
