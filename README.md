@@ -1,22 +1,22 @@
 # eventbus-rs
 
-Foundational Rust crates for an async **event bus** abstraction: **`bus-core`** (trait-only, no NATS/runtime lock-in) and **`bus-macros`** (`#[derive(Event)]` with compile-time subject validation).
+Async **event bus** for Rust: typed events, NATS JetStream transport, transactional Postgres outbox, and a SQLite fallback buffer for offline publishing — built on a trait-only core so applications stay decoupled from any single transport.
 
-**License:** MIT OR Apache-2.0  
+**License:** MIT OR Apache-2.0
 **Repository:** [github.com/1hoodlabs/eventbus-rs](https://github.com/1hoodlabs/eventbus-rs)
 
 ---
 
 ## Overview
 
-This workspace is the **core layer** of a larger event-bus stack. Today it provides:
+This workspace ships four crates that compose into a full event-bus stack:
 
-- Strongly typed **`Event`** plus **`Publisher`**, **`EventHandler`**, and **`IdempotencyStore`** traits
-- **`MessageId`**: UUIDv7 newtype (monotonic, serialization-friendly)
-- **`BusError`** / **`HandlerError`**: structured errors for transports and handlers
-- **`#[derive(Event)]`**: `subject` templates with `{self.field}` interpolation and `aggregate` metadata
+- **`bus-core`** — trait-only contracts (`Event`, `Publisher`, `EventHandler`, `IdempotencyStore`), `MessageId` (UUIDv7), and structured `BusError` / `HandlerError`. No transport dependencies.
+- **`bus-macros`** — `#[derive(Event)]` with compile-time `subject` template validation and `{self.field}` interpolation.
+- **`bus-nats`** — NATS JetStream `Publisher` implementation, pull-consumer subscriber, and idempotency stores backed by NATS KV (default) or Redis (`redis-inbox` feature).
+- **`bus-outbox`** — transactional outbox dispatcher with `PostgresOutboxStore` + `PostgresIdempotencyStore` (default), and a `SqliteBuffer` fallback (`sqlite-buffer` feature) for relaying messages when NATS is unreachable.
 
-Transports (for example NATS JetStream), outbox, and concrete stores are intentionally **out of scope** for these crates so `bus-core` stays dependency-light.
+The architecture diagram below depicts the **v1.0 target** (including the `event-bus` facade, saga engine, and `bus-telemetry` crates which are still on the roadmap). Status of each component is called out in [Implementation status](#implementation-status).
 
 ---
 
@@ -179,9 +179,29 @@ graph TB
 
 ---
 
+## Implementation status
+
+| Component | Crate | Status |
+|-----------|-------|--------|
+| Traits, `MessageId`, errors | `bus-core` | Shipped |
+| `#[derive(Event)]` macro | `bus-macros` | Shipped |
+| NATS JetStream `Publisher` + subscriber | `bus-nats` | Shipped |
+| NATS KV idempotency store | `bus-nats` (`nats-kv-inbox`, default) | Shipped |
+| Redis idempotency store | `bus-nats` (`redis-inbox`) | Shipped |
+| Postgres outbox + dispatcher | `bus-outbox` (`postgres-outbox`, default) | Shipped |
+| Postgres idempotency store | `bus-outbox` (`postgres-inbox`, default) | Shipped |
+| SQLite fallback buffer | `bus-outbox` (`sqlite-buffer`) | Shipped |
+| `event-bus` facade + saga engine | `event-bus` | Planned |
+| `bus-telemetry` (OTel spans + metrics) | `bus-telemetry` | Planned |
+
+---
+
 ## Requirements
 
 - **Rust toolchain:** **1.85.0** or newer (workspace uses **edition 2024**)
+- **NATS** 2.10+ with JetStream enabled (for `bus-nats`)
+- **PostgreSQL** 14+ (for `bus-outbox` Postgres features)
+- A local `docker-compose.yml` is provided to spin up NATS + Postgres for development and integration tests.
 
 ---
 
@@ -189,24 +209,35 @@ graph TB
 
 | Crate        | Purpose |
 |-------------|---------|
-| [`bus-core`](crates/bus-core/)   | Traits and types shared by publishers and consumers (no NATS-specific deps) |
+| [`bus-core`](crates/bus-core/)     | Traits and types shared by publishers and consumers (no transport deps) |
 | [`bus-macros`](crates/bus-macros/) | Proc-macro `#[derive(Event)]` and `#[event(...)]` attributes |
+| [`bus-nats`](crates/bus-nats/)     | NATS JetStream publisher, subscriber, ack/DLQ helpers, and KV/Redis idempotency stores |
+| [`bus-outbox`](crates/bus-outbox/) | Transactional outbox + dispatcher, Postgres idempotency store, SQLite fallback buffer |
 
 ---
 
 ## Quick start
 
-Add the crates to your `Cargo.toml` (paths shown for local development; published versions will use `version = "..."` from [crates.io](https://crates.io/) when available):
+Add the crates you need to your `Cargo.toml` (paths shown for local development; published versions will use `version = "..."` from [crates.io](https://crates.io/) when available):
 
 ```toml
 [dependencies]
-bus-core = { path = "crates/bus-core" }
+bus-core   = { path = "crates/bus-core" }
 bus-macros = { path = "crates/bus-macros" }
+
+# Optional — NATS JetStream transport
+bus-nats   = { path = "crates/bus-nats" }
+# or with Redis-backed idempotency:
+# bus-nats = { path = "crates/bus-nats", default-features = false, features = ["redis-inbox"] }
+
+# Optional — transactional outbox + SQLite fallback
+bus-outbox = { path = "crates/bus-outbox", features = ["sqlite-buffer"] }
+
 serde = { version = "1", features = ["derive"] }
-uuid = { version = "1", features = ["v7"] }
+uuid  = { version = "1", features = ["v7"] }
 ```
 
-Minimal usage:
+### Defining an event
 
 ```rust
 use bus_core::{Event, MessageId};
@@ -240,9 +271,16 @@ See integration tests under [`crates/bus-macros/tests/`](crates/bus-macros/tests
 ## Development
 
 ```bash
+# Unit tests + clippy across the whole workspace
 cargo test --workspace
-cargo clippy --workspace -- -D warnings
+cargo clippy --workspace --all-features -- -D warnings
+
+# Integration tests for bus-nats / bus-outbox use testcontainers and require Docker
+cargo test -p bus-nats
+cargo test -p bus-outbox --features sqlite-buffer
 ```
+
+A `docker-compose.yml` is included at the repo root to bring up NATS and Postgres locally if you prefer running tests against long-lived services.
 
 ---
 
