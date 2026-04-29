@@ -10,7 +10,7 @@ license.workspace    = true
 repository.workspace = true
 
 [features]
-default         = ["postgres-outbox"]
+default         = ["postgres-outbox", "postgres-inbox"]
 postgres-outbox = ["dep:sqlx"]
 postgres-inbox  = ["dep:sqlx"]
 sqlite-buffer   = ["dep:rusqlite"]
