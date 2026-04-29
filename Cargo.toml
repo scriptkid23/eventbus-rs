@@ -3,7 +3,6 @@ members = [
     "crates/bus-core",
     "crates/bus-macros",
     "crates/bus-nats",
-    "crates/bus-outbox",
 ]
 resolver = "2"
 

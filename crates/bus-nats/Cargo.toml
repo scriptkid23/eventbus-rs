@@ -1,0 +1,33 @@
+[package]
+name        = "bus-nats"
+description = "NATS JetStream backend for eventbus-rs"
+keywords    = ["nats", "jetstream", "eventbus", "async"]
+categories  = ["asynchronous", "network-programming"]
+version.workspace    = true
+edition.workspace    = true
+authors.workspace    = true
+license.workspace    = true
+repository.workspace = true
+
+[features]
+default       = ["nats-kv-inbox"]
+nats-kv-inbox = []
+redis-inbox   = ["dep:redis"]
+
+[dependencies]
+async-nats  = { workspace = true }
+async-trait = { workspace = true }
+bus-core    = { path = "../bus-core" }
+bytes       = { workspace = true }
+redis       = { workspace = true, optional = true }
+serde_json  = { workspace = true }
+tokio       = { workspace = true }
+tracing     = { workspace = true }
+uuid        = { workspace = true }
+
+[dev-dependencies]
+testcontainers         = { workspace = true }
+testcontainers-modules = { workspace = true }
+tokio                  = { workspace = true }
+serde                  = { workspace = true, features = ["derive"] }
+bus-macros             = { path = "../bus-macros" }
