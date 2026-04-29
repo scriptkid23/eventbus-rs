@@ -1,0 +1,34 @@
+[package]
+name        = "bus-outbox"
+description = "Transactional outbox, inbox, and SQLite fallback buffer for eventbus-rs"
+keywords    = ["eventbus", "outbox", "idempotency", "postgres"]
+categories  = ["asynchronous", "database"]
+version.workspace    = true
+edition.workspace    = true
+authors.workspace    = true
+license.workspace    = true
+repository.workspace = true
+
+[features]
+default         = ["postgres-outbox"]
+postgres-outbox = ["dep:sqlx"]
+postgres-inbox  = ["dep:sqlx"]
+sqlite-buffer   = ["dep:rusqlite"]
+
+[dependencies]
+async-trait = { workspace = true }
+bus-core    = { path = "../bus-core" }
+bytes       = { workspace = true }
+rusqlite    = { workspace = true, optional = true }
+serde_json  = { workspace = true }
+sqlx        = { workspace = true, optional = true }
+tokio       = { workspace = true }
+tracing     = { workspace = true }
+uuid        = { workspace = true }
+
+[dev-dependencies]
+bus-macros             = { path = "../bus-macros" }
+serde                  = { workspace = true, features = ["derive"] }
+testcontainers         = { workspace = true }
+testcontainers-modules = { workspace = true }
+tokio                  = { workspace = true }
