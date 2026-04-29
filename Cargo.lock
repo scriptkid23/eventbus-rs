@@ -254,6 +254,7 @@ dependencies = [
  "bus-core",
  "bus-macros",
  "bytes",
+ "futures-util",
  "redis",
  "serde",
  "serde_json",
