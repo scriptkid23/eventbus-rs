@@ -2,24 +2,35 @@
 members = [
     "crates/bus-core",
     "crates/bus-macros",
+    "crates/bus-nats",
+    "crates/bus-outbox",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
-edition = "2024"
-authors = ["Olivier Taylor <tech@mey.network>"]
-license = "MIT OR Apache-2.0"
+version    = "0.1.0"
+edition    = "2024"
+authors    = ["Olivier Taylor <tech@mey.network>"]
+license    = "MIT OR Apache-2.0"
 repository = "https://github.com/1hoodlabs/eventbus-rs"
 
 [workspace.dependencies]
-async-trait = "0.1"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-thiserror = "1"
-tokio = { version = "1.36", features = ["full"] }
-tracing = "0.1"
-uuid = { version = "1", features = ["v7", "serde"] }
-proc-macro2 = "1"
-quote = "1"
-syn = { version = "2", features = ["full"] }
+async-nats   = "0.46"
+async-trait  = "0.1"
+bytes        = "1.5"
+redis        = { version = "0.26", features = ["tokio-comp", "connection-manager"] }
+rusqlite     = { version = "0.31", features = ["bundled"] }
+serde        = { version = "1", features = ["derive"] }
+serde_json   = "1"
+sqlx         = { version = "0.8", features = ["runtime-tokio", "tls-rustls-ring-webpki", "postgres", "uuid", "chrono", "json"] }
+thiserror    = "1"
+tokio        = { version = "1.36", features = ["full"] }
+tracing      = "0.1"
+uuid         = { version = "1", features = ["v7", "serde"] }
+# proc-macro deps
+proc-macro2  = "1"
+quote        = "1"
+syn          = { version = "2", features = ["full"] }
+# test deps
+testcontainers         = "0.23"
+testcontainers-modules = { version = "0.11", features = ["nats", "postgres"] }
