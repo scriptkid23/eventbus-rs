@@ -1,0 +1,12 @@
+[package]
+name    = "example-01-basic-publish"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+event-bus          = { path = "../../crates/event-bus", features = ["nats-kv-inbox"] }
+bus-nats           = { path = "../../crates/bus-nats" }
+serde              = { workspace = true, features = ["derive"] }
+tokio              = { workspace = true }
+tracing-subscriber = "0.3"

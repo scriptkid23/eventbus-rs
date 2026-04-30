@@ -1,0 +1,13 @@
+[package]
+name    = "example-03-idempotent-handler"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+async-trait        = { workspace = true }
+bus-nats           = { path = "../../crates/bus-nats" }
+event-bus          = { path = "../../crates/event-bus", features = ["nats-kv-inbox"] }
+serde              = { workspace = true, features = ["derive"] }
+tokio              = { workspace = true }
+tracing-subscriber = "0.3"

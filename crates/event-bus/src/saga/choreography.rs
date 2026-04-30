@@ -1,0 +1,1 @@
+// ChoreographyStep trait

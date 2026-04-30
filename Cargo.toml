@@ -4,6 +4,11 @@ members = [
     "crates/bus-macros",
     "crates/bus-nats",
     "crates/bus-outbox",
+    "crates/bus-telemetry",
+    "crates/event-bus",
+    "examples/01-basic-publish",
+    "examples/02-outbox-postgres",
+    "examples/03-idempotent-handler",
 ]
 resolver = "2"
 
@@ -35,3 +40,8 @@ syn          = { version = "2", features = ["full"] }
 # test deps
 testcontainers         = "0.23"
 testcontainers-modules = { version = "0.11", features = ["nats", "postgres"] }
+# OpenTelemetry
+opentelemetry                      = { version = "0.24", features = ["metrics"] }
+opentelemetry_sdk                  = { version = "0.24", features = ["rt-tokio", "metrics"] }
+opentelemetry-semantic-conventions = "0.16"
+tracing-opentelemetry              = "0.25"

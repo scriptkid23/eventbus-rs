@@ -1,0 +1,43 @@
+[package]
+name        = "event-bus"
+description = "Production-grade event bus for Rust — NATS JetStream with effectively-once semantics"
+keywords    = ["nats", "eventbus", "messaging", "outbox", "idempotency"]
+categories  = ["asynchronous", "network-programming"]
+version.workspace    = true
+edition.workspace    = true
+authors.workspace    = true
+license.workspace    = true
+repository.workspace = true
+
+[features]
+default         = ["macros", "nats-kv-inbox"]
+macros          = ["dep:bus-macros"]
+nats-kv-inbox   = ["bus-nats/nats-kv-inbox"]
+postgres-inbox  = ["bus-outbox/postgres-inbox"]
+redis-inbox     = ["bus-nats/redis-inbox"]
+postgres-outbox = ["bus-outbox/postgres-outbox"]
+sqlite-buffer   = ["bus-outbox/sqlite-buffer"]
+otel            = ["dep:bus-telemetry"]
+saga            = ["postgres-outbox", "dep:sqlx"]
+
+[dependencies]
+async-trait   = { workspace = true }
+bus-core      = { path = "../bus-core" }
+bus-macros    = { path = "../bus-macros", optional = true }
+bus-nats      = { path = "../bus-nats" }
+bus-outbox    = { path = "../bus-outbox", optional = true }
+bus-telemetry = { path = "../bus-telemetry", optional = true }
+serde         = { workspace = true }
+serde_json    = { workspace = true }
+sqlx          = { workspace = true, optional = true }
+tokio         = { workspace = true }
+tracing       = { workspace = true }
+uuid          = { workspace = true }
+
+[dev-dependencies]
+async-trait            = { workspace = true }
+bus-macros             = { path = "../bus-macros" }
+serde                  = { workspace = true, features = ["derive"] }
+testcontainers         = { workspace = true }
+testcontainers-modules = { workspace = true }
+tokio                  = { workspace = true }

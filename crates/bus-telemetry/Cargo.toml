@@ -1,0 +1,21 @@
+[package]
+name        = "bus-telemetry"
+description = "OpenTelemetry instrumentation for eventbus-rs"
+keywords    = ["opentelemetry", "tracing", "metrics", "nats"]
+categories  = ["asynchronous", "network-programming"]
+version.workspace    = true
+edition.workspace    = true
+authors.workspace    = true
+license.workspace    = true
+repository.workspace = true
+
+[dependencies]
+async-nats                         = { workspace = true }
+bus-core                           = { path = "../bus-core" }
+opentelemetry                      = { workspace = true }
+opentelemetry-semantic-conventions = { workspace = true }
+tracing                            = { workspace = true }
+tracing-opentelemetry              = { workspace = true }
+
+[dev-dependencies]
+opentelemetry_sdk = { workspace = true }
