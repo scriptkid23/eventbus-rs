@@ -60,7 +60,7 @@ pub async fn subscribe<E, H, I>(
 where
     E: Event,
     H: EventHandler<E>,
-    I: IdempotencyStore + 'static,
+    I: IdempotencyStore + ?Sized + 'static,
 {
     let stream = client
         .js
@@ -129,7 +129,7 @@ async fn process_message<E, H, I>(
 ) where
     E: Event,
     H: EventHandler<E>,
-    I: IdempotencyStore,
+    I: IdempotencyStore + ?Sized,
 {
     let info = match msg.info() {
         Ok(i) => i,
