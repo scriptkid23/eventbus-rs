@@ -696,6 +696,7 @@ dependencies = [
 name = "example-01-basic-publish"
 version = "0.1.0"
 dependencies = [
+ "bus-core",
  "bus-nats",
  "event-bus",
  "serde",
