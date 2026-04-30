@@ -6,6 +6,7 @@ publish = false
 
 [dependencies]
 async-trait        = { workspace = true }
+bus-core           = { path = "../../crates/bus-core" }
 bus-nats           = { path = "../../crates/bus-nats" }
 event-bus          = { path = "../../crates/event-bus", features = ["nats-kv-inbox"] }
 serde              = { workspace = true, features = ["derive"] }

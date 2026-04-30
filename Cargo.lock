@@ -717,6 +717,7 @@ name = "example-03-idempotent-handler"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bus-core",
  "bus-nats",
  "event-bus",
  "serde",
