@@ -9,5 +9,5 @@ pub use error::{BusError, HandlerError};
 pub use event::Event;
 pub use handler::{EventHandler, HandlerCtx};
 pub use id::MessageId;
-pub use idempotency::IdempotencyStore;
+pub use idempotency::{ClaimOutcome, IdempotencyStore};
 pub use publisher::{PubReceipt, Publisher};
