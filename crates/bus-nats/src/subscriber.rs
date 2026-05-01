@@ -63,9 +63,18 @@ impl Default for SubscribeOptions {
     }
 }
 
-/// Handle to a running subscription. Dropping this handle stops the consumer loop.
+/// Handle to a running subscription. Dropping this handle stops the consumer loop
+/// and aborts every in-flight per-message worker.
 pub struct SubscriptionHandle {
     _handle: JoinHandle<()>,
+}
+
+impl Drop for SubscriptionHandle {
+    fn drop(&mut self) {
+        // Abort the outer message loop. When the outer task is aborted, its
+        // owned `JoinSet<()>` is dropped, which aborts every spawned worker.
+        self._handle.abort();
+    }
 }
 
 #[derive(Clone)]
@@ -134,36 +143,53 @@ where
 
     let handle = tokio::spawn(async move {
         let mut messages = match consumer.messages().await {
-            Ok(m) => m,
-            Err(e) => {
-                tracing::error!("failed to get message stream: {}", e);
+            Ok(stream) => stream,
+            Err(error) => {
+                tracing::error!("failed to get message stream: {}", error);
                 return;
             }
         };
 
-        while let Some(item) = messages.next().await {
-            let msg = match item {
-                Ok(m) => m,
-                Err(e) => {
-                    tracing::warn!("message stream error: {}", e);
-                    continue;
+        let mut workers: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
+
+        loop {
+            tokio::select! {
+                biased;
+                Some(joined) = workers.join_next(), if !workers.is_empty() => {
+                    if let Err(error) = joined {
+                        if !error.is_cancelled() {
+                            tracing::warn!("worker task error: {}", error);
+                        }
+                    }
                 }
-            };
+                next = messages.next() => {
+                    let Some(item) = next else { break };
+                    let msg = match item {
+                        Ok(message) => message,
+                        Err(error) => {
+                            tracing::warn!("message stream error: {}", error);
+                            continue;
+                        }
+                    };
 
-            let permit = semaphore
-                .clone()
-                .acquire_owned()
-                .await
-                .expect("subscriber semaphore is never closed");
-            let handler = handler.clone();
-            let store = idempotency_store.clone();
-            let processing_options = processing_options.clone();
+                    let permit = semaphore
+                        .clone()
+                        .acquire_owned()
+                        .await
+                        .expect("subscriber semaphore is never closed");
+                    let handler = handler.clone();
+                    let store = idempotency_store.clone();
+                    let processing_options = processing_options.clone();
 
-            tokio::spawn(async move {
-                let _permit = permit;
-                process_message::<E, H, I>(msg, handler, store, processing_options).await;
-            });
+                    workers.spawn(async move {
+                        let _permit = permit;
+                        process_message::<E, H, I>(msg, handler, store, processing_options).await;
+                    });
+                }
+            }
         }
+
+        workers.shutdown().await;
     });
 
     Ok(SubscriptionHandle { _handle: handle })
