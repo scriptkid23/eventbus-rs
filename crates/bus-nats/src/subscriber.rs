@@ -3,10 +3,9 @@ use crate::{
     client::NatsClient,
     consumer::build_pull_config,
     dlq::{
-        CLASS_PERMANENT, CLASS_POISON, CLASS_TRANSIENT_EXHAUSTED, DLQ_FAILURE_NAK_DELAY,
-        DlqOptions, FALLBACK_NAK_DELAY, FailureInfo, REASON_HANDLER_PERMANENT,
-        REASON_INVALID_PAYLOAD, REASON_MAX_RETRIES_EXCEEDED, build_dlq_headers, dlq_subject,
-        publish_to_dlq,
+        CLASS_PERMANENT, CLASS_POISON, CLASS_TRANSIENT_EXHAUSTED, DlqOptions, FALLBACK_NAK_DELAY,
+        FailureInfo, REASON_HANDLER_PERMANENT, REASON_INVALID_PAYLOAD,
+        REASON_MAX_RETRIES_EXCEEDED, build_dlq_headers, dlq_subject, publish_to_dlq,
     },
 };
 use async_nats::jetstream::{
@@ -305,39 +304,49 @@ async fn handle_terminal_failure<I>(
 ) where
     I: IdempotencyStore + ?Sized,
 {
-    if processing_options.dlq_opts.is_some() {
-        let failure_info = FailureInfo {
-            original_subject: msg.subject.to_string(),
-            original_stream: processing_options.source.clone(),
-            original_seq: failure.stream_sequence,
-            original_msg_id: failure.msg_id.to_string(),
-            consumer: processing_options.durable.clone(),
-            delivered: failure.delivered,
-            failure_reason: failure.failure_reason.to_string(),
-            failure_class: failure.failure_class.to_string(),
-            failure_detail: failure.failure_detail,
-        };
-        let headers = build_dlq_headers(&failure_info);
-        let subject = dlq_subject(&processing_options.source, &processing_options.durable);
-
-        match publish_to_dlq(
-            &processing_options.js,
-            &subject,
-            msg.payload.clone(),
-            headers,
-        )
-        .await
-        {
-            Ok(()) => {
-                mark_done_and_term(store, msg, failure.msg_id).await;
-            }
-            Err(error) => {
-                tracing::error!(msg_id = %failure.msg_id, "DLQ publish failed: {} — NAKing for retry", error);
-                release_and_nak(store, msg, failure.msg_id, DLQ_FAILURE_NAK_DELAY).await;
-            }
-        }
-    } else {
+    let Some(dlq_opts) = processing_options.dlq_opts.as_ref() else {
         mark_done_and_term(store, msg, failure.msg_id).await;
+        return;
+    };
+
+    let failure_info = FailureInfo {
+        original_subject: msg.subject.to_string(),
+        original_stream: processing_options.source.clone(),
+        original_seq: failure.stream_sequence,
+        original_msg_id: failure.msg_id.to_string(),
+        consumer: processing_options.durable.clone(),
+        delivered: failure.delivered,
+        failure_reason: failure.failure_reason.to_string(),
+        failure_class: failure.failure_class.to_string(),
+        failure_detail: failure.failure_detail,
+    };
+    let headers = build_dlq_headers(&failure_info);
+    let subject = dlq_subject(&processing_options.source, &processing_options.durable);
+
+    match publish_to_dlq(
+        &processing_options.js,
+        &subject,
+        msg.payload.clone(),
+        headers,
+        dlq_opts.config.publish_ack_timeout,
+    )
+    .await
+    {
+        Ok(()) => mark_done_and_term(store, msg, failure.msg_id).await,
+        Err(error) => {
+            tracing::error!(
+                msg_id = %failure.msg_id,
+                "DLQ publish failed: {} — NAKing for retry",
+                error,
+            );
+            release_and_nak(
+                store,
+                msg,
+                failure.msg_id,
+                dlq_opts.config.failure_nak_delay,
+            )
+            .await;
+        }
     }
 }
 

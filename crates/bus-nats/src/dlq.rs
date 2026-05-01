@@ -26,8 +26,7 @@ pub const DEFAULT_DLQ_DUPLICATE_WINDOW: Duration =
     Duration::from_secs(DEFAULT_DLQ_DUPLICATE_WINDOW_MIN * SECONDS_PER_MINUTE);
 
 pub const FALLBACK_NAK_DELAY: Duration = Duration::from_secs(5);
-pub const DLQ_FAILURE_NAK_DELAY: Duration = Duration::from_secs(5);
-pub const DLQ_PUBLISH_ACK_TIMEOUT: Duration = Duration::from_secs(1);
+pub const DEFAULT_DLQ_FAILURE_NAK_DELAY: Duration = Duration::from_secs(5);
 
 pub const CLASS_PERMANENT: &str = "permanent";
 pub const CLASS_POISON: &str = "poison";
@@ -59,6 +58,12 @@ pub struct DlqConfig {
     pub deny_delete: bool,
     pub deny_purge: bool,
     pub allow_direct: bool,
+    /// Maximum time to wait for the JetStream pub-ack on a DLQ publish.
+    /// `None` (default) defers to the async-nats client request timeout.
+    pub publish_ack_timeout: Option<Duration>,
+    /// Delay applied via `Nak` on the source message when DLQ publish fails.
+    /// Default: [`DEFAULT_DLQ_FAILURE_NAK_DELAY`].
+    pub failure_nak_delay: Duration,
 }
 
 impl Default for DlqConfig {
@@ -71,6 +76,8 @@ impl Default for DlqConfig {
             deny_delete: true,
             deny_purge: false,
             allow_direct: true,
+            publish_ack_timeout: None,
+            failure_nak_delay: DEFAULT_DLQ_FAILURE_NAK_DELAY,
         }
     }
 }
@@ -166,19 +173,25 @@ pub async fn publish_to_dlq(
     subject: &str,
     payload: Bytes,
     headers: HeaderMap,
+    publish_ack_timeout: Option<Duration>,
 ) -> Result<(), BusError> {
-    let publish_ack = tokio::time::timeout(
-        DLQ_PUBLISH_ACK_TIMEOUT,
-        js.publish_with_headers(subject.to_string(), headers, payload),
-    )
-    .await
-    .map_err(|_| BusError::Nats("dlq publish send timeout".to_string()))?
+    let publish_fut = js.publish_with_headers(subject.to_string(), headers, payload);
+
+    let publish_ack = match publish_ack_timeout {
+        Some(timeout) => tokio::time::timeout(timeout, publish_fut)
+            .await
+            .map_err(|_| BusError::Nats("dlq publish send timeout".to_string()))?,
+        None => publish_fut.await,
+    }
     .map_err(|error| BusError::Nats(format!("dlq publish send: {error}")))?;
 
-    tokio::time::timeout(DLQ_PUBLISH_ACK_TIMEOUT, publish_ack)
-        .await
-        .map_err(|_| BusError::Nats("dlq publish ack timeout".to_string()))?
-        .map_err(|error| BusError::Nats(format!("dlq publish ack: {error}")))?;
+    match publish_ack_timeout {
+        Some(timeout) => tokio::time::timeout(timeout, publish_ack)
+            .await
+            .map_err(|_| BusError::Nats("dlq publish ack timeout".to_string()))?,
+        None => publish_ack.await,
+    }
+    .map_err(|error| BusError::Nats(format!("dlq publish ack: {error}")))?;
 
     Ok(())
 }

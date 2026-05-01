@@ -294,6 +294,7 @@ async fn publish_to_dlq_persists_payload_and_headers() {
         "dlq.X.w",
         payload.clone(),
         build_dlq_headers(&failure_info),
+        None,
     )
     .await
     .unwrap();
@@ -317,7 +318,14 @@ async fn publish_to_dlq_returns_err_when_no_stream_captures_subject() {
     let mut headers = async_nats::HeaderMap::new();
     headers.insert("Nats-Msg-Id", "test-id");
 
-    let result = publish_to_dlq(&js, "dlq.NONEXISTENT.x", Bytes::from_static(b"x"), headers).await;
+    let result = publish_to_dlq(
+        &js,
+        "dlq.NONEXISTENT.x",
+        Bytes::from_static(b"x"),
+        headers,
+        None,
+    )
+    .await;
 
     assert!(result.is_err());
 }
@@ -352,6 +360,7 @@ async fn publish_to_dlq_dedups_via_nats_msg_id() {
         "dlq.X.w",
         Bytes::from_static(b"first"),
         build_dlq_headers(&failure_info),
+        None,
     )
     .await
     .unwrap();
@@ -360,6 +369,7 @@ async fn publish_to_dlq_dedups_via_nats_msg_id() {
         "dlq.X.w",
         Bytes::from_static(b"second"),
         build_dlq_headers(&failure_info),
+        None,
     )
     .await
     .unwrap();
@@ -680,6 +690,8 @@ async fn dlq_publish_failure_naks_original_handler_invoked_max_deliver_times() {
         dlq: Some(DlqOptions {
             config: DlqConfig {
                 num_replicas: 1,
+                failure_nak_delay: Duration::from_millis(200),
+                publish_ack_timeout: Some(Duration::from_millis(500)),
                 ..Default::default()
             },
         }),
@@ -703,7 +715,7 @@ async fn dlq_publish_failure_naks_original_handler_invoked_max_deliver_times() {
         .await
         .unwrap();
 
-    tokio::time::sleep(Duration::from_secs(14)).await;
+    tokio::time::sleep(Duration::from_secs(6)).await;
 
     assert_eq!(counter.load(Ordering::SeqCst), 3);
 }
