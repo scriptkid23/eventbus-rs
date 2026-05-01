@@ -1,5 +1,6 @@
 use async_nats::jetstream;
 use async_trait::async_trait;
+use bus_core::idempotency::IdempotencyStore;
 use bus_core::{EventHandler, HandlerCtx, HandlerError, MessageId, Publisher};
 use bus_macros::Event;
 use bus_nats::dlq::{
@@ -718,4 +719,73 @@ async fn dlq_publish_failure_naks_original_handler_invoked_max_deliver_times() {
     tokio::time::sleep(Duration::from_secs(6)).await;
 
     assert_eq!(counter.load(Ordering::SeqCst), 3);
+}
+
+struct CountingHandler {
+    counter: Arc<AtomicU32>,
+}
+
+#[async_trait]
+impl EventHandler<DlqTestEvent> for CountingHandler {
+    async fn handle(&self, _ctx: HandlerCtx, _evt: DlqTestEvent) -> Result<(), HandlerError> {
+        self.counter.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn already_done_message_is_acked_without_invoking_handler() {
+    let (_container, url) = start_nats().await;
+    let client = connect_nats_client(&url).await;
+    let publisher = NatsPublisher::new(client.clone());
+    let store = Arc::new(
+        NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(60))
+            .await
+            .unwrap(),
+    );
+
+    // Pre-mark a message-id as done. When the subscriber sees a published
+    // event carrying this id in `Nats-Msg-Id`, try_claim must return
+    // AlreadyDone and the handler must not run.
+    let msg_id = MessageId::new();
+    store
+        .try_claim(&msg_id, Duration::from_secs(60))
+        .await
+        .unwrap();
+    store.mark_done(&msg_id).await.unwrap();
+
+    let counter = Arc::new(AtomicU32::new(0));
+    let options = SubscribeOptions {
+        durable: "already-done-test".into(),
+        filter: "events.dlq.>".into(),
+        max_deliver: 3,
+        ack_wait: Duration::from_secs(2),
+        backoff: vec![Duration::from_millis(100)],
+        ..Default::default()
+    };
+
+    let _handle = subscribe::<DlqTestEvent, _, _>(
+        client.clone(),
+        options,
+        Arc::new(CountingHandler {
+            counter: counter.clone(),
+        }),
+        store.clone(),
+    )
+    .await
+    .unwrap();
+
+    let event = DlqTestEvent {
+        id: msg_id.clone(),
+        value: 1,
+    };
+    publisher.publish(&event).await.unwrap();
+
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    assert_eq!(
+        counter.load(Ordering::SeqCst),
+        0,
+        "handler must not run when try_claim returns AlreadyDone",
+    );
 }

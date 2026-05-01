@@ -17,7 +17,7 @@ use bus_core::{
     event::Event,
     handler::{EventHandler, HandlerCtx},
     id::MessageId,
-    idempotency::IdempotencyStore,
+    idempotency::{ClaimOutcome, IdempotencyStore},
 };
 use futures_util::StreamExt;
 use std::{str::FromStr, sync::Arc, time::Duration};
@@ -213,38 +213,41 @@ async fn process_message<E, H, I>(
         }
     };
 
-    // Extract message ID from Nats-Msg-Id header, fall back to a fresh UUIDv7
+    // Extract message ID from Nats-Msg-Id header, fall back to a fresh UUIDv7.
+    // We use `async_nats::header::NATS_MESSAGE_ID` rather than the raw string
+    // `"Nats-Msg-Id"` because async-nats represents this as a typed standard
+    // header — looking it up by `&str` constructs a `Custom` variant that
+    // never matches the stored `Standard` variant.
     let msg_id = msg
         .headers
         .as_ref()
-        .and_then(|h| h.get("Nats-Msg-Id"))
+        .and_then(|h| h.get(async_nats::header::NATS_MESSAGE_ID))
         .and_then(|v| MessageId::from_str(v.as_str()).ok())
         .unwrap_or_else(|| MessageId::from_uuid(uuid::Uuid::now_v7()));
 
     // Idempotency check — skip if already processed
     match store
-        .try_insert(&msg_id, processing_options.idempotency_ttl)
+        .try_claim(&msg_id, processing_options.idempotency_ttl)
         .await
     {
-        Ok(false) => {
-            if info.delivered > 1 {
-                tracing::debug!(
-                    %msg_id,
-                    delivered = info.delivered,
-                    "redelivery for pending message — retrying handler"
-                );
-            } else {
-                tracing::debug!(%msg_id, "duplicate message — skipping");
-                let _ = ack::double_ack(&msg).await;
-                return;
-            }
+        Ok(ClaimOutcome::Claimed) => {}
+        Ok(ClaimOutcome::AlreadyPending) => {
+            tracing::debug!(
+                %msg_id,
+                delivered = info.delivered,
+                "claim is pending — retrying handler",
+            );
         }
-        Err(e) => {
-            tracing::warn!(%msg_id, "idempotency store error: {} — NAKing", e);
+        Ok(ClaimOutcome::AlreadyDone) => {
+            tracing::debug!(%msg_id, "already processed — acking duplicate");
+            let _ = ack::double_ack(&msg).await;
+            return;
+        }
+        Err(error) => {
+            tracing::warn!(%msg_id, "idempotency store error: {} — NAKing", error);
             let _ = ack::nak_with_delay(&msg, Duration::from_secs(1)).await;
             return;
         }
-        Ok(true) => {}
     }
 
     // Deserialize event
