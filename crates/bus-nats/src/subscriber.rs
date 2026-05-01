@@ -150,7 +150,11 @@ where
                 }
             };
 
-            let permit = semaphore.clone().acquire_owned().await.unwrap();
+            let permit = semaphore
+                .clone()
+                .acquire_owned()
+                .await
+                .expect("subscriber semaphore is never closed");
             let handler = handler.clone();
             let store = idempotency_store.clone();
             let processing_options = processing_options.clone();
