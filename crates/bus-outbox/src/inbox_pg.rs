@@ -1,13 +1,17 @@
 use async_trait::async_trait;
-use bus_core::{error::BusError, id::MessageId, idempotency::IdempotencyStore};
+use bus_core::{
+    error::BusError,
+    id::MessageId,
+    idempotency::{ClaimOutcome, IdempotencyStore},
+};
 use sqlx::PgPool;
 use std::time::Duration;
 
-/// PostgreSQL-backed idempotency store that prevents duplicate handler executions.
+/// PostgreSQL-backed idempotency store.
 ///
-/// Uses `INSERT ... ON CONFLICT DO NOTHING` for atomic, race-free deduplication.
-/// Each consumer name has an independent namespace via the `(consumer, message_id)`
-/// composite primary key.
+/// `try_claim` uses `INSERT … ON CONFLICT DO NOTHING RETURNING 1` to detect
+/// first writes atomically. On conflict, a follow-up `SELECT status` reads the
+/// existing row.
 #[derive(Clone)]
 pub struct PostgresIdempotencyStore {
     pool: PgPool,
@@ -15,7 +19,6 @@ pub struct PostgresIdempotencyStore {
 }
 
 impl PostgresIdempotencyStore {
-    /// Create a new store for the given consumer name.
     pub fn new(pool: PgPool, consumer: String) -> Self {
         Self { pool, consumer }
     }
@@ -23,20 +26,44 @@ impl PostgresIdempotencyStore {
 
 #[async_trait]
 impl IdempotencyStore for PostgresIdempotencyStore {
-    async fn try_insert(&self, key: &MessageId, _ttl: Duration) -> Result<bool, BusError> {
-        let result = sqlx::query(
+    async fn try_claim(
+        &self,
+        key: &MessageId,
+        _ttl: Duration,
+    ) -> Result<ClaimOutcome, BusError> {
+        let inserted: Option<i32> = sqlx::query_scalar(
             r#"INSERT INTO eventbus_inbox (message_id, consumer, status)
                VALUES ($1, $2, 'pending')
-               ON CONFLICT (consumer, message_id) DO NOTHING"#,
+               ON CONFLICT (consumer, message_id) DO NOTHING
+               RETURNING 1"#,
         )
         .bind(key.to_string())
         .bind(&self.consumer)
-        .execute(&self.pool)
+        .fetch_optional(&self.pool)
         .await
         .map_err(|e| BusError::Idempotency(e.to_string()))?;
 
-        // rows_affected == 1 means inserted (first time), 0 means conflict (duplicate)
-        Ok(result.rows_affected() == 1)
+        if inserted.is_some() {
+            return Ok(ClaimOutcome::Claimed);
+        }
+
+        let status: Option<String> = sqlx::query_scalar(
+            "SELECT status FROM eventbus_inbox WHERE consumer = $1 AND message_id = $2",
+        )
+        .bind(&self.consumer)
+        .bind(key.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| BusError::Idempotency(e.to_string()))?;
+
+        match status.as_deref() {
+            Some("pending") => Ok(ClaimOutcome::AlreadyPending),
+            Some("done") => Ok(ClaimOutcome::AlreadyDone),
+            Some(other) => Err(BusError::Idempotency(format!(
+                "unexpected status `{other}` in eventbus_inbox"
+            ))),
+            None => Ok(ClaimOutcome::Claimed),
+        }
     }
 
     async fn mark_done(&self, key: &MessageId) -> Result<(), BusError> {
