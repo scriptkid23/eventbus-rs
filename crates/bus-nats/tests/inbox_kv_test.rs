@@ -1,13 +1,13 @@
-use bus_core::{IdempotencyStore, MessageId};
+use bus_core::{ClaimOutcome, IdempotencyStore, MessageId};
 use bus_nats::{NatsClient, NatsKvIdempotencyStore, StreamConfig};
 use std::time::Duration;
 use testcontainers::{
-    GenericImage, ImageExt,
+    ContainerAsync, GenericImage, ImageExt,
     core::{IntoContainerPort, WaitFor},
     runners::AsyncRunner,
 };
 
-async fn start_nats() -> (impl Drop, String) {
+async fn start_nats() -> (ContainerAsync<GenericImage>, String) {
     let container = GenericImage::new("nats", "2.10-alpine")
         .with_exposed_port(4222.tcp())
         .with_wait_for(WaitFor::message_on_stderr("Server is ready"))
@@ -26,23 +26,11 @@ async fn connect_client(url: &str) -> NatsClient {
         num_replicas: 1,
         ..Default::default()
     };
-    let mut last_error = None;
-
-    for _ in 0..20 {
-        match NatsClient::connect(url, &cfg).await {
-            Ok(client) => return client,
-            Err(error) => {
-                last_error = Some(error);
-                tokio::time::sleep(Duration::from_millis(100)).await;
-            }
-        }
-    }
-
-    panic!("failed to connect NATS client: {:?}", last_error);
+    NatsClient::connect(url, &cfg).await.unwrap()
 }
 
 #[tokio::test]
-async fn first_insert_returns_true() {
+async fn first_claim_returns_claimed() {
     let (_c, url) = start_nats().await;
     let client = connect_client(&url).await;
     let store = NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(60))
@@ -50,15 +38,12 @@ async fn first_insert_returns_true() {
         .unwrap();
 
     let id = MessageId::new();
-    let result = store
-        .try_insert(&id, Duration::from_secs(60))
-        .await
-        .unwrap();
-    assert!(result, "first insert must return true");
+    let outcome = store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
+    assert_eq!(outcome, ClaimOutcome::Claimed);
 }
 
 #[tokio::test]
-async fn second_insert_returns_false() {
+async fn second_claim_on_pending_returns_already_pending() {
     let (_c, url) = start_nats().await;
     let client = connect_client(&url).await;
     let store = NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(60))
@@ -66,19 +51,13 @@ async fn second_insert_returns_false() {
         .unwrap();
 
     let id = MessageId::new();
-    let _ = store
-        .try_insert(&id, Duration::from_secs(60))
-        .await
-        .unwrap();
-    let result = store
-        .try_insert(&id, Duration::from_secs(60))
-        .await
-        .unwrap();
-    assert!(!result, "second insert with same key must return false");
+    store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
+    let outcome = store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
+    assert_eq!(outcome, ClaimOutcome::AlreadyPending);
 }
 
 #[tokio::test]
-async fn mark_done_does_not_error() {
+async fn claim_after_mark_done_returns_already_done() {
     let (_c, url) = start_nats().await;
     let client = connect_client(&url).await;
     let store = NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(60))
@@ -86,9 +65,25 @@ async fn mark_done_does_not_error() {
         .unwrap();
 
     let id = MessageId::new();
-    store
-        .try_insert(&id, Duration::from_secs(60))
-        .await
-        .unwrap();
+    store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
     store.mark_done(&id).await.unwrap();
+
+    let outcome = store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
+    assert_eq!(outcome, ClaimOutcome::AlreadyDone);
+}
+
+#[tokio::test]
+async fn claim_after_release_returns_claimed_again() {
+    let (_c, url) = start_nats().await;
+    let client = connect_client(&url).await;
+    let store = NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(60))
+        .await
+        .unwrap();
+
+    let id = MessageId::new();
+    store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
+    store.release(&id).await.unwrap();
+
+    let outcome = store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
+    assert_eq!(outcome, ClaimOutcome::Claimed);
 }

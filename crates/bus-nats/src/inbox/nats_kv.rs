@@ -1,23 +1,27 @@
 use async_nats::jetstream::{self, kv};
 use async_trait::async_trait;
-use bus_core::{error::BusError, id::MessageId, idempotency::IdempotencyStore};
+use bus_core::{
+    error::BusError,
+    id::MessageId,
+    idempotency::{ClaimOutcome, IdempotencyStore},
+};
 use bytes::Bytes;
 use std::time::Duration;
 
+const KV_PENDING: &[u8] = b"pending";
+const KV_DONE: &[u8] = b"done";
+
 /// Idempotency store backed by NATS JetStream Key-Value store.
 ///
-/// Uses `kv::Store::create` for atomic, first-writer-wins semantics, ensuring
-/// that concurrent consumers cannot both claim the same message ID.
+/// Uses `kv::Store::create` for atomic, first-writer-wins claim semantics.
+/// On conflict, `try_claim` reads the existing entry to distinguish a still
+/// pending claim from a completed one.
 #[derive(Clone)]
 pub struct NatsKvIdempotencyStore {
     store: kv::Store,
 }
 
 impl NatsKvIdempotencyStore {
-    /// Create or bind to the `eventbus_processed` KV bucket.
-    ///
-    /// `max_age` controls how long processed keys are retained before
-    /// automatic expiry.
     pub async fn new(js: jetstream::Context, max_age: Duration) -> Result<Self, BusError> {
         let store = js
             .create_key_value(kv::Config {
@@ -36,27 +40,35 @@ impl NatsKvIdempotencyStore {
 
 #[async_trait]
 impl IdempotencyStore for NatsKvIdempotencyStore {
-    /// Atomically claim a message ID.
-    ///
-    /// Returns `Ok(true)` when this call is the first to claim the key.
-    /// Returns `Ok(false)` when the key already exists (duplicate delivery).
-    async fn try_insert(&self, key: &MessageId, _ttl: Duration) -> Result<bool, BusError> {
+    async fn try_claim(
+        &self,
+        key: &MessageId,
+        _ttl: Duration,
+    ) -> Result<ClaimOutcome, BusError> {
+        let key_str = key.to_string();
+
         match self
             .store
-            .create(key.to_string(), Bytes::from_static(b"pending"))
+            .create(&key_str, Bytes::from_static(KV_PENDING))
             .await
         {
-            Ok(_) => Ok(true),
-            Err(_) => Ok(false),
+            Ok(_) => Ok(ClaimOutcome::Claimed),
+            Err(_) => match self
+                .store
+                .get(&key_str)
+                .await
+                .map_err(|e| BusError::Idempotency(e.to_string()))?
+            {
+                Some(value) if value.as_ref() == KV_DONE => Ok(ClaimOutcome::AlreadyDone),
+                Some(_) => Ok(ClaimOutcome::AlreadyPending),
+                None => Ok(ClaimOutcome::Claimed),
+            },
         }
     }
 
-    /// Update a previously inserted key to `"done"`.
-    ///
-    /// Idempotent: a second call on an already-done key is harmless.
     async fn mark_done(&self, key: &MessageId) -> Result<(), BusError> {
         self.store
-            .put(key.to_string(), Bytes::from_static(b"done"))
+            .put(key.to_string(), Bytes::from_static(KV_DONE))
             .await
             .map_err(|e| BusError::Idempotency(e.to_string()))?;
         Ok(())
