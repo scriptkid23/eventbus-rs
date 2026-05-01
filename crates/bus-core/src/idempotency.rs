@@ -16,5 +16,7 @@ pub trait IdempotencyStore: Send + Sync {
 
     /// Mark a previously inserted key as successfully processed.
     async fn mark_done(&self, key: &MessageId) -> Result<(), BusError>;
-}
 
+    /// Release a claim for work that did not complete and should be retried.
+    async fn release(&self, key: &MessageId) -> Result<(), BusError>;
+}

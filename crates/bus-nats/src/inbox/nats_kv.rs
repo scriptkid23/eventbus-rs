@@ -61,4 +61,12 @@ impl IdempotencyStore for NatsKvIdempotencyStore {
             .map_err(|e| BusError::Idempotency(e.to_string()))?;
         Ok(())
     }
+
+    async fn release(&self, key: &MessageId) -> Result<(), BusError> {
+        self.store
+            .purge(key.to_string())
+            .await
+            .map_err(|e| BusError::Idempotency(e.to_string()))?;
+        Ok(())
+    }
 }

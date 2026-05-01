@@ -13,6 +13,10 @@ pub mod subscriber;
 pub(crate) mod testing;
 
 pub use client::NatsClient;
+pub use dlq::{
+    DEFAULT_DLQ_DUPLICATE_WINDOW, DEFAULT_DLQ_MAX_AGE, DEFAULT_DLQ_REPLICAS, DlqConfig, DlqOptions,
+    FailureInfo, build_dlq_headers, ensure_dlq_stream, publish_to_dlq,
+};
 pub use publisher::NatsPublisher;
 pub use stream::StreamConfig;
 pub use subscriber::{SubscribeOptions, SubscriptionHandle};

@@ -6,29 +6,35 @@ use bus_core::{
     publisher::{PubReceipt, Publisher},
 };
 use bus_nats::{
-    subscriber::{subscribe, SubscribeOptions},
-    NatsClient, NatsPublisher,
+    DlqConfig, DlqOptions, NatsClient, NatsPublisher,
+    subscriber::{SubscribeOptions, subscribe},
 };
 use std::sync::Arc;
 
 /// The main event bus handle. Clone cheaply — all state is `Arc`-wrapped.
 #[derive(Clone)]
 pub struct EventBus {
-    _client:     NatsClient,
-    publisher:   NatsPublisher,
+    _client: NatsClient,
+    publisher: NatsPublisher,
     idempotency: Arc<dyn IdempotencyStore>,
+    dlq: Option<DlqConfig>,
 }
 
 /// Handle to a running subscription. Dropping stops the consumer loop.
 pub struct SubscriptionHandle(#[allow(dead_code)] bus_nats::SubscriptionHandle);
 
 impl EventBus {
-    pub(crate) fn new(client: NatsClient, idempotency: Arc<dyn IdempotencyStore>) -> Self {
+    pub(crate) fn new(
+        client: NatsClient,
+        idempotency: Arc<dyn IdempotencyStore>,
+        dlq: Option<DlqConfig>,
+    ) -> Self {
         let publisher = NatsPublisher::new(client.clone());
         Self {
             _client: client,
             publisher,
             idempotency,
+            dlq,
         }
     }
 
@@ -41,13 +47,30 @@ impl EventBus {
     /// Idempotency is checked automatically before each handler invocation.
     pub async fn subscribe<E, H>(
         &self,
-        opts: SubscribeOptions,
+        mut opts: SubscribeOptions,
         handler: H,
     ) -> Result<SubscriptionHandle, BusError>
     where
         E: Event,
         H: EventHandler<E>,
     {
+        if opts.dlq.is_none()
+            && let Some(config) = &self.dlq
+        {
+            let stream_name = bus_nats::dlq::dlq_stream_name(&opts.stream, &opts.durable);
+            let subject = bus_nats::dlq::dlq_subject(&opts.stream, &opts.durable);
+            bus_nats::dlq::ensure_dlq_stream(
+                self._client.jetstream(),
+                &stream_name,
+                &subject,
+                config,
+            )
+            .await?;
+            opts.dlq = Some(DlqOptions {
+                config: config.clone(),
+            });
+        }
+
         let handle = subscribe::<E, H, dyn IdempotencyStore>(
             self._client.clone(),
             opts,

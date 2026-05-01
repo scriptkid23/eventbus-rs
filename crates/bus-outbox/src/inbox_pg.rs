@@ -10,7 +10,7 @@ use std::time::Duration;
 /// composite primary key.
 #[derive(Clone)]
 pub struct PostgresIdempotencyStore {
-    pool:     PgPool,
+    pool: PgPool,
     consumer: String,
 }
 
@@ -42,6 +42,18 @@ impl IdempotencyStore for PostgresIdempotencyStore {
     async fn mark_done(&self, key: &MessageId) -> Result<(), BusError> {
         sqlx::query(
             "UPDATE eventbus_inbox SET status = 'done' WHERE consumer = $1 AND message_id = $2",
+        )
+        .bind(&self.consumer)
+        .bind(key.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| BusError::Idempotency(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn release(&self, key: &MessageId) -> Result<(), BusError> {
+        sqlx::query(
+            "DELETE FROM eventbus_inbox WHERE consumer = $1 AND message_id = $2 AND status = 'pending'",
         )
         .bind(&self.consumer)
         .bind(key.to_string())

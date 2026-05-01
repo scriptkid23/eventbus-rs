@@ -1,24 +1,26 @@
 use crate::bus::EventBus;
 use bus_core::{error::BusError, idempotency::IdempotencyStore};
-use bus_nats::{NatsClient, StreamConfig};
+use bus_nats::{DlqConfig, NatsClient, StreamConfig};
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
 pub struct EventBusBuilder {
-    url:         Option<String>,
-    stream_cfg:  StreamConfig,
+    url: Option<String>,
+    stream_cfg: StreamConfig,
     idempotency: Option<Arc<dyn IdempotencyStore>>,
     sqlite_path: Option<PathBuf>,
-    otel:        bool,
+    otel: bool,
+    dlq: Option<DlqConfig>,
 }
 
 impl EventBusBuilder {
     pub fn new() -> Self {
         Self {
-            url:         None,
-            stream_cfg:  StreamConfig::default(),
+            url: None,
+            stream_cfg: StreamConfig::default(),
             idempotency: None,
             sqlite_path: None,
-            otel:        false,
+            otel: false,
+            dlq: None,
         }
     }
 
@@ -63,6 +65,12 @@ impl EventBusBuilder {
         self
     }
 
+    /// Enable per-consumer DLQ streams for subscribers created by this bus.
+    pub fn with_dlq(mut self, cfg: DlqConfig) -> Self {
+        self.dlq = Some(cfg);
+        self
+    }
+
     /// Build the `EventBus`. Returns `Err` if `idempotency()` was not called.
     pub async fn build(self) -> Result<EventBus, BusError> {
         let url = self
@@ -76,7 +84,7 @@ impl EventBusBuilder {
 
         let client = NatsClient::connect(&url, &self.stream_cfg).await?;
 
-        Ok(EventBus::new(client, idempotency))
+        Ok(EventBus::new(client, idempotency, self.dlq))
     }
 }
 
