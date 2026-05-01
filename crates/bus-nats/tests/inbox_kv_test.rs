@@ -26,7 +26,17 @@ async fn connect_client(url: &str) -> NatsClient {
         num_replicas: 1,
         ..Default::default()
     };
-    NatsClient::connect(url, &cfg).await.unwrap()
+    let mut last_error = None;
+    for _ in 0..20 {
+        match NatsClient::connect(url, &cfg).await {
+            Ok(client) => return client,
+            Err(error) => {
+                last_error = Some(error);
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        }
+    }
+    panic!("failed to connect NatsClient: {:?}", last_error);
 }
 
 #[tokio::test]

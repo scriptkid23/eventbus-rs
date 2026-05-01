@@ -156,10 +156,10 @@ where
             tokio::select! {
                 biased;
                 Some(joined) = workers.join_next(), if !workers.is_empty() => {
-                    if let Err(error) = joined {
-                        if !error.is_cancelled() {
-                            tracing::warn!("worker task error: {}", error);
-                        }
+                    if let Err(error) = joined
+                        && !error.is_cancelled()
+                    {
+                        tracing::warn!("worker task error: {}", error);
                     }
                 }
                 next = messages.next() => {
