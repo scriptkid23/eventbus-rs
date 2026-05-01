@@ -1,4 +1,4 @@
-use bus_core::{IdempotencyStore, MessageId};
+use bus_core::{ClaimOutcome, IdempotencyStore, MessageId};
 use bus_outbox::{PostgresIdempotencyStore, migrate::run_migrations};
 use sqlx::PgPool;
 use std::time::Duration;
@@ -28,23 +28,22 @@ async fn start_postgres() -> (impl Drop, String) {
 }
 
 #[tokio::test]
-async fn first_insert_returns_true() {
+async fn first_claim_returns_claimed() {
     let (_c, url) = start_postgres().await;
     let pool = PgPool::connect(&url).await.unwrap();
     run_migrations(&pool).await.unwrap();
 
     let store = PostgresIdempotencyStore::new(pool, "test-consumer".into());
     let id = MessageId::new();
-    assert!(
-        store
-            .try_insert(&id, Duration::from_secs(3600))
-            .await
-            .unwrap()
-    );
+    let outcome = store
+        .try_claim(&id, Duration::from_secs(3600))
+        .await
+        .unwrap();
+    assert_eq!(outcome, ClaimOutcome::Claimed);
 }
 
 #[tokio::test]
-async fn second_insert_returns_false() {
+async fn second_claim_on_pending_returns_already_pending() {
     let (_c, url) = start_postgres().await;
     let pool = PgPool::connect(&url).await.unwrap();
     run_migrations(&pool).await.unwrap();
@@ -52,15 +51,35 @@ async fn second_insert_returns_false() {
     let store = PostgresIdempotencyStore::new(pool, "test-consumer".into());
     let id = MessageId::new();
     store
-        .try_insert(&id, Duration::from_secs(3600))
+        .try_claim(&id, Duration::from_secs(3600))
         .await
         .unwrap();
-    assert!(
-        !store
-            .try_insert(&id, Duration::from_secs(3600))
-            .await
-            .unwrap()
-    );
+    let outcome = store
+        .try_claim(&id, Duration::from_secs(3600))
+        .await
+        .unwrap();
+    assert_eq!(outcome, ClaimOutcome::AlreadyPending);
+}
+
+#[tokio::test]
+async fn claim_after_mark_done_returns_already_done() {
+    let (_c, url) = start_postgres().await;
+    let pool = PgPool::connect(&url).await.unwrap();
+    run_migrations(&pool).await.unwrap();
+
+    let store = PostgresIdempotencyStore::new(pool, "test-consumer".into());
+    let id = MessageId::new();
+    store
+        .try_claim(&id, Duration::from_secs(3600))
+        .await
+        .unwrap();
+    store.mark_done(&id).await.unwrap();
+
+    let outcome = store
+        .try_claim(&id, Duration::from_secs(3600))
+        .await
+        .unwrap();
+    assert_eq!(outcome, ClaimOutcome::AlreadyDone);
 }
 
 #[tokio::test]
@@ -73,17 +92,15 @@ async fn different_consumers_independent() {
     let store_b = PostgresIdempotencyStore::new(pool, "consumer-b".into());
     let id = MessageId::new();
 
-    assert!(
-        store_a
-            .try_insert(&id, Duration::from_secs(3600))
-            .await
-            .unwrap()
-    );
-    // Same message_id but different consumer — must return true
-    assert!(
-        store_b
-            .try_insert(&id, Duration::from_secs(3600))
-            .await
-            .unwrap()
-    );
+    let outcome_a = store_a
+        .try_claim(&id, Duration::from_secs(3600))
+        .await
+        .unwrap();
+    assert_eq!(outcome_a, ClaimOutcome::Claimed);
+    // Same message_id but different consumer — must claim independently
+    let outcome_b = store_b
+        .try_claim(&id, Duration::from_secs(3600))
+        .await
+        .unwrap();
+    assert_eq!(outcome_b, ClaimOutcome::Claimed);
 }
