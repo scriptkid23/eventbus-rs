@@ -24,6 +24,10 @@ use std::{str::FromStr, sync::Arc, time::Duration};
 use tokio::{sync::Semaphore, task::JoinHandle};
 use tracing::Span;
 
+const SECONDS_PER_DAY: u64 = 24 * 60 * 60;
+
+pub const DEFAULT_IDEMPOTENCY_TTL: Duration = Duration::from_secs(7 * SECONDS_PER_DAY);
+
 /// Options for subscribing to events from a JetStream stream.
 pub struct SubscribeOptions {
     pub stream: String,
@@ -34,6 +38,8 @@ pub struct SubscribeOptions {
     pub backoff: Vec<Duration>,
     pub concurrency: usize,
     pub dlq: Option<DlqOptions>,
+    /// TTL for idempotency keys claimed by `try_claim`. Default: [`DEFAULT_IDEMPOTENCY_TTL`].
+    pub idempotency_ttl: Duration,
 }
 
 impl Default for SubscribeOptions {
@@ -52,6 +58,7 @@ impl Default for SubscribeOptions {
             ],
             concurrency: 1,
             dlq: None,
+            idempotency_ttl: DEFAULT_IDEMPOTENCY_TTL,
         }
     }
 }
@@ -69,6 +76,7 @@ struct ProcessingOptions {
     durable: String,
     max_deliver: i64,
     backoff: Vec<Duration>,
+    idempotency_ttl: Duration,
 }
 
 struct TerminalFailure<'a> {
@@ -121,6 +129,7 @@ where
         durable: opts.durable.clone(),
         max_deliver: opts.max_deliver,
         backoff: opts.backoff.clone(),
+        idempotency_ttl: opts.idempotency_ttl,
     };
 
     let handle = tokio::spawn(async move {
@@ -184,7 +193,7 @@ async fn process_message<E, H, I>(
 
     // Idempotency check — skip if already processed
     match store
-        .try_insert(&msg_id, Duration::from_secs(86400 * 7))
+        .try_insert(&msg_id, processing_options.idempotency_ttl)
         .await
     {
         Ok(false) => {
