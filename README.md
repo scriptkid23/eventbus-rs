@@ -384,6 +384,17 @@ Enable structured tracing via `tracing-subscriber`. With the `otel` feature (pla
 | `eventbus.outbox.pending`    | gauge     | —                             |
 | `eventbus.handle.duration`   | histogram | `durable`, `event_type`       |
 | `eventbus.dlq.total`         | counter   | `durable`, `reason`           |
+| `eventbus.jetstream.advisory.total` | counter   | `kind`, `stream`, `consumer` |
+
+Planned advisory observability:
+
+- Subscribe to `$JS.EVENT.ADVISORY.>` from `bus-nats::advisory` and treat it as an observability-only feed.
+- Capture important JetStream advisories first: `CONSUMER.MAX_DELIVERIES` and `CONSUMER.MSG_TERMINATED`.
+- Emit structured `tracing` events with advisory subject, kind, stream, consumer, sequence, and delivery count when available.
+- Record an OpenTelemetry counter such as `eventbus.jetstream.advisory.total` from the `otel` feature path.
+- Keep `bus-nats` independent from `bus-telemetry`; expose advisory events through tracing or a small callback interface.
+- Wire the observer through `event-bus` only when `.with_otel()` / the `otel` feature is enabled.
+- Do not use advisories for DLQ or message control flow yet; subscriber-side terminal handling remains the source of truth.
 
 ---
 
@@ -415,54 +426,38 @@ event-bus = { git = "...", default-features = false, features = ["nats-kv-inbox"
 
 ## Architecture
 
-```text
-┌──────────────────────────────────────────────────────────────────────────┐
-│  Application                                                             │
-│                                                                          │
-│   bus.publish(event) ─────────────────────────┐                          │
-│                                               ▼                          │
-│   BEGIN TX                              ┌──────────┐                     │
-│     INSERT INTO orders ...              │ EventBus │                     │
-│     outbox.insert(tx, event) ─┐         └────┬─────┘                     │
-│   COMMIT                      │              │                           │
-│                               ▼              ▼                           │
-│                        ┌──────────────┐  ┌─────────────────────────┐     │
-│                        │  Postgres    │  │  bus-nats               │     │
-│                        │  outbox row  │  │  (Publisher + Sub +     │     │
-│                        │  (pending)   │  │   CircuitBreaker + DLQ) │     │
-│                        └──────┬───────┘  └─────┬───────────────────┘     │
-│                               │                │                         │
-│                          (every 250 ms)        │                         │
-│                               ▼                ▼                         │
-│                        ┌─────────────────────────────┐                   │
-│                        │   OutboxDispatcher          │                   │
-│                        │   SELECT … FOR UPDATE       │                   │
-│                        │   SKIP LOCKED LIMIT 100     │                   │
-│                        └──────────────┬──────────────┘                   │
-│                                       │                                  │
-│                                       ▼                                  │
-│                         ┌──────────────────────────┐                     │
-│                         │   NATS JetStream         │                     │
-│                         │   stream: EVENTS (R3)    │                     │
-│                         │   dedup: 5 min           │                     │
-│                         └────────┬─────────────────┘                     │
-│                                  │                                       │
-│  ─── consume path ───────────────┴─────────────────                      │
-│                                  │                                       │
-│                                  ▼                                       │
-│                         ┌──────────────────────────┐                     │
-│                         │   Pull consumer          │                     │
-│                         │   (semaphore-bounded)    │                     │
-│                         └────────┬─────────────────┘                     │
-│                                  │                                       │
-│            try_claim(msg_id) ────┼──→ IdempotencyStore                   │
-│              ├─ Claimed   → handle() → mark_done → ACK                   │
-│              ├─ Pending   → NAK with backoff                             │
-│              └─ Done      → ACK (skip handler — duplicate)               │
-│                                  │                                       │
-│              On Permanent error  → publish to DLQ stream → Term          │
-│              On max_deliver hit  → publish to DLQ stream → Term          │
-└──────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph application["Application"]
+        publish["bus.publish(event)"]
+        tx["BEGIN TX<br/>INSERT INTO orders ...<br/>outbox.insert(tx, event)<br/>COMMIT"]
+        event_bus["EventBus"]
+        postgres_outbox["Postgres outbox row<br/>(pending)"]
+        bus_nats["bus-nats<br/>(Publisher + Sub + CircuitBreaker + DLQ)"]
+        dispatcher["OutboxDispatcher<br/>SELECT ... FOR UPDATE<br/>SKIP LOCKED LIMIT 100"]
+        jetstream["NATS JetStream<br/>stream: EVENTS (R3)<br/>dedup: 5 min"]
+        pull_consumer["Pull consumer<br/>(semaphore-bounded)"]
+        idempotency{"try_claim(msg_id)<br/>IdempotencyStore"}
+        handler["handle()<br/>mark_done<br/>ACK"]
+        retry["NAK with backoff"]
+        duplicate["ACK<br/>(skip handler - duplicate)"]
+        dlq["publish to DLQ stream<br/>Term"]
+
+        publish --> event_bus
+        tx --> postgres_outbox
+        tx --> event_bus
+        event_bus --> bus_nats
+        postgres_outbox -->|"every 250 ms"| dispatcher
+        dispatcher --> jetstream
+        bus_nats --> jetstream
+        jetstream --> pull_consumer
+        pull_consumer --> idempotency
+        idempotency -->|"Claimed"| handler
+        idempotency -->|"Pending"| retry
+        idempotency -->|"Done"| duplicate
+        handler -->|"Permanent error"| dlq
+        handler -->|"max_deliver hit"| dlq
+    end
 ```
 
 For the full v1.0 component diagram (saga engine, OTel, SQLite fallback, all crates), see [`docs/diagrams/`](docs/diagrams/).
