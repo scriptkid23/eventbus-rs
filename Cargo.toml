@@ -3,11 +3,9 @@ members = [
     "crates/bus-core",
     "crates/bus-macros",
     "crates/bus-nats",
-    "crates/bus-outbox",
     "crates/bus-telemetry",
     "crates/event-bus",
     "examples/01-basic-publish",
-    "examples/02-outbox-postgres",
     "examples/03-idempotent-handler",
 ]
 resolver = "2"
