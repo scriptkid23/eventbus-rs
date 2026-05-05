@@ -11,11 +11,5 @@ pub use bus_nats::NatsKvIdempotencyStore;
 
 pub use bus_nats::{DlqConfig, DlqOptions};
 
-#[cfg(feature = "postgres-outbox")]
-pub use bus_outbox::PostgresOutboxStore;
-
-#[cfg(feature = "postgres-inbox")]
-pub use bus_outbox::PostgresIdempotencyStore;
-
 #[cfg(feature = "sqlite-buffer")]
-pub use bus_outbox::SqliteBuffer;
+pub use bus_nats::SqliteBuffer;
