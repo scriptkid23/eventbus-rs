@@ -13,7 +13,6 @@ pub struct BusMetrics {
     pub consume_duration_ms: Histogram<f64>,
     pub redeliveries_total:  Counter<u64>,
     pub dlq_total:           Counter<u64>,
-    pub outbox_dispatch_ms:  Histogram<f64>,
     pub idempotency_hits:    Counter<u64>,
 }
 
@@ -51,11 +50,6 @@ impl BusMetrics {
             dlq_total: meter
                 .u64_counter("eventbus.dlq.total")
                 .with_description("Total messages sent to DLQ")
-                .init(),
-
-            outbox_dispatch_ms: meter
-                .f64_histogram("eventbus.outbox.dispatch_ms")
-                .with_description("Outbox dispatch latency in milliseconds")
                 .init(),
 
             idempotency_hits: meter
