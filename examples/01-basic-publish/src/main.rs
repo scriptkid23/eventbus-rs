@@ -4,7 +4,10 @@
 //!   docker compose up -d nats   # or: docker run -p 4222:4222 nats:latest -js
 //!   cargo run -p example-01-basic-publish -- nats://localhost:4222
 
-use bus_nats::{NatsClient, NatsKvIdempotencyStore, StreamConfig};
+use bus_nats::{
+    NatsClient, NatsKvIdempotencyStore, StreamConfig,
+    advisory::{AdvisoryLogOptions, spawn_jetstream_advisory_logger},
+};
 use event_bus::{EventBusBuilder, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -31,6 +34,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..Default::default()
     };
     let client = NatsClient::connect(&url, &stream_cfg).await?;
+    let _advisory_logger =
+        spawn_jetstream_advisory_logger(client.jetstream(), AdvisoryLogOptions::default()).await?;
     let store =
         NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(3600)).await?;
 

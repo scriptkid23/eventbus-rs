@@ -101,6 +101,7 @@ The shortest path to publishing and consuming a typed event:
 use async_trait::async_trait;
 use event_bus::{prelude::*, EventBusBuilder};
 use bus_nats::{NatsClient, NatsKvIdempotencyStore, StreamConfig, subscriber::SubscribeOptions};
+use bus_nats::advisory::{AdvisoryLogOptions, spawn_jetstream_advisory_logger};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -131,6 +132,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Idempotency store backed by NATS KV (default)
     let client = NatsClient::connect(url, &stream_cfg).await?;
+    let _advisory_logger = spawn_jetstream_advisory_logger(
+        client.jetstream(),
+        AdvisoryLogOptions::default(),
+    ).await?;
     let store  = NatsKvIdempotencyStore::new(
         client.jetstream().clone(),
         Duration::from_secs(3600),

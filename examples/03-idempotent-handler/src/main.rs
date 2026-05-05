@@ -5,7 +5,11 @@
 //!   cargo run -p example-03-idempotent-handler -- nats://localhost:4222
 
 use async_trait::async_trait;
-use bus_nats::{NatsClient, NatsKvIdempotencyStore, StreamConfig, subscriber::SubscribeOptions};
+use bus_nats::{
+    NatsClient, NatsKvIdempotencyStore, StreamConfig,
+    advisory::{AdvisoryLogOptions, spawn_jetstream_advisory_logger},
+    subscriber::SubscribeOptions,
+};
 use event_bus::{EventBusBuilder, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -52,6 +56,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..Default::default()
     };
     let client = NatsClient::connect(&url, &stream_cfg).await?;
+    let _advisory_logger =
+        spawn_jetstream_advisory_logger(client.jetstream(), AdvisoryLogOptions::default()).await?;
     let store =
         NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(3600)).await?;
 
