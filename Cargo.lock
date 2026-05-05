@@ -256,6 +256,7 @@ dependencies = [
  "bytes",
  "futures-util",
  "redis",
+ "rusqlite",
  "serde",
  "serde_json",
  "testcontainers",
