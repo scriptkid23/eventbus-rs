@@ -8,16 +8,13 @@ flowchart TD
         busCore[bus-core]
         busMacros[bus-macros]
         busNats[bus-nats]
-        busTelemetry[bus-telemetry]
         eventBus[event-bus]
     end
 
     busMacros --> busCore
     busNats --> busCore
-    busTelemetry --> busCore
     eventBus --> busCore
     eventBus --> busNats
-    eventBus -->|"optional feature: otel"| busTelemetry
     eventBus -->|"optional feature: macros"| busMacros
 ```
 
@@ -30,13 +27,11 @@ flowchart LR
     natsKv["nats-kv-inbox -> bus-nats nats_kv"]
     redisInbox["redis-inbox -> bus-nats redis"]
     sqliteBuffer["sqlite-buffer -> bus-nats sqlite_buffer"]
-    otel["otel -> bus-telemetry"]
 
     eventBus --> macros
     eventBus --> natsKv
     eventBus --> redisInbox
     eventBus --> sqliteBuffer
-    eventBus --> otel
 ```
 
 ## 3. Publish and Consume Flow
@@ -68,20 +63,4 @@ flowchart TD
     idem -->|"duplicate"| sub
     handler -->|"ok/transient/permanent"| sub
     sub --> dlq
-```
-
-## 4. Telemetry Propagation
-
-```mermaid
-sequenceDiagram
-    participant svcA as PublisherService
-    participant nats as NATSJetStream
-    participant svcB as ConsumerService
-    participant otel as OTelCollector
-
-    svcA->>nats: publish with traceparent header
-    nats-->>svcB: deliver message with headers
-    svcB->>svcB: extract parent context and create child span
-    svcA->>otel: export spans and metrics
-    svcB->>otel: export spans and metrics
 ```
