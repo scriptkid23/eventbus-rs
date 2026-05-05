@@ -60,7 +60,6 @@ The core (`bus-core`) is trait-only with **zero transport dependencies**, so you
 - **Per-consumer DLQ.** Permanent and exhausted-retry failures go to a per-consumer dead-letter stream with full failure metadata in headers.
 - **Circuit breaker + SQLite fallback.** When NATS is unavailable, publishes spool to disk and replay on recovery.
 - **Built for tokio.** Async-first, `Send + Sync` traits, `Arc`-cheap clones.
-- **Observable.** OpenTelemetry spans + metrics for publish / consume / handle / dispatch (planned in `bus-telemetry`).
 - **Permissively licensed.** MIT OR Apache-2.0, dual-licensed like the Rust ecosystem.
 
 ---
@@ -317,25 +316,7 @@ Dropping a `SubscriptionHandle` aborts both the outer message loop and every spa
 
 ### 8. Observability
 
-Enable structured tracing via `tracing-subscriber`. With the `otel` feature (planned in `bus-telemetry`), the bus injects W3C `traceparent` headers on publish and extracts them on receive, so spans cross the wire. Metrics emitted:
-
-| Metric                  | Type      | Labels                        |
-| ----------------------- | --------- | ----------------------------- |
-| `eventbus.publish.total`     | counter   | `subject`, `result`           |
-| `eventbus.consume.total`     | counter   | `stream`, `durable`, `result` |
-| `eventbus.handle.duration`   | histogram | `durable`, `event_type`       |
-| `eventbus.dlq.total`         | counter   | `durable`, `reason`           |
-| `eventbus.jetstream.advisory.total` | counter   | `kind`, `stream`, `consumer` |
-
-Planned advisory observability:
-
-- Subscribe to `$JS.EVENT.ADVISORY.>` from `bus-nats::advisory` and treat it as an observability-only feed.
-- Capture important JetStream advisories first: `CONSUMER.MAX_DELIVERIES` and `CONSUMER.MSG_TERMINATED`.
-- Emit structured `tracing` events with advisory subject, kind, stream, consumer, sequence, and delivery count when available.
-- Record an OpenTelemetry counter such as `eventbus.jetstream.advisory.total` from the `otel` feature path.
-- Keep `bus-nats` independent from `bus-telemetry`; expose advisory events through tracing or a small callback interface.
-- Wire the observer through `event-bus` only when `.with_otel()` / the `otel` feature is enabled.
-- Do not use advisories for DLQ or message control flow yet; subscriber-side terminal handling remains the source of truth.
+`bus-nats` emits structured `tracing` events at `info` / `warn` / `error` for publish, consume, retry, idempotency-store outcomes, and DLQ handoff. Wire your preferred `tracing-subscriber` layer (JSON, OTLP, …) in your application bootstrap to forward those to whatever observability stack you run. `eventbus-rs` itself does not bundle a metrics exporter or define its own metrics.
 
 ---
 
@@ -347,7 +328,6 @@ Planned advisory observability:
 | `event-bus`   | `nats-kv-inbox`   | yes     | NATS KV-backed `IdempotencyStore`                                      |
 | `event-bus`   | `redis-inbox`     | no      | Redis-backed `IdempotencyStore`                                        |
 | `event-bus`   | `sqlite-buffer`   | no      | Local-disk fallback buffer for offline publishing                      |
-| `event-bus`   | `otel`            | no      | OpenTelemetry spans + metrics (via `bus-telemetry`)                    |
 | `bus-nats`    | `nats-kv-inbox`   | yes     | (transitively enabled by `event-bus`)                                  |
 | `bus-nats`    | `redis-inbox`     | no      | (transitively enabled by `event-bus`)                                  |
 | `bus-nats`    | `sqlite-buffer`   | no      | (transitively enabled by `event-bus`)                                  |
@@ -406,7 +386,6 @@ For the current component diagrams, see [`docs/diagrams/`](docs/diagrams/).
 | Redis idempotency store                  | `bus-nats` (`redis-inbox`)               | ✅ Shipped |
 | SQLite fallback buffer                   | `bus-nats` (`sqlite-buffer`)             | ✅ Shipped |
 | `EventBus` facade + builder              | `event-bus`                              | ✅ Shipped |
-| OTel spans + metrics                     | `bus-telemetry`                          | 📋 Planned |
 | `crates.io` publish                      | all crates                               | 📋 Planned (v0.1.0) |
 
 ---
@@ -448,7 +427,7 @@ No — pre-1.0. Breaking changes are tracked in `CHANGELOG.md` and called out in
 
 **v0.1** *(current)* — Core traits, NATS publisher/subscriber, KV/Redis idempotency, SQLite buffer, DLQ, circuit breaker.
 
-**v0.2** — `crates.io` publish, OTel spans + metrics.
+**v0.2** — `crates.io` publish.
 
 **v0.3** — (Optional) additional transport backends (Kafka, Redis Streams) if user demand emerges.
 
