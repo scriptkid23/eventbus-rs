@@ -2,7 +2,7 @@
 
 # eventbus-rs
 
-**A production-grade async event bus for Rust — NATS JetStream + transactional Postgres outbox + idempotent inbox.**
+**A typed async event bus for Rust — NATS JetStream with idempotent inbox, DLQ, and circuit breaker.**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/1hoodlabs/eventbus-rs/ci.yml?branch=main&label=ci)](https://github.com/1hoodlabs/eventbus-rs/actions)
 [![Crates.io](https://img.shields.io/crates/v/event-bus.svg)](https://crates.io/crates/event-bus)
@@ -16,14 +16,13 @@
 
 ---
 
-`eventbus-rs` is a typed, async event bus for Rust services that need **effectively-once** delivery on top of NATS JetStream. It bundles the four primitives every reliable event-driven system needs and lets you swap any of them out:
+`eventbus-rs` is a typed, async event bus for Rust services that need **effectively-once** delivery on top of NATS JetStream. It bundles the three primitives every reliable event-driven system needs and lets you swap any of them out:
 
 - **Typed events** with compile-time subject templates (`#[derive(Event)]`).
-- **Transactional outbox** — publish events atomically with the SQL transaction that mutates business state.
 - **Idempotent inbox** — handlers run exactly once per `MessageId`, even on JetStream redelivery.
 - **DLQ + circuit breaker + SQLite fallback** — terminal failures are isolated, transient outages don't drop messages.
 
-The core (`bus-core`) is trait-only with **zero transport dependencies**, so you can ship a different transport later without touching application code.
+The core (`bus-core`) is trait-only with **zero transport dependencies**, so you can ship a different transport later without touching application code. The transactional outbox pattern (atomic publish-with-DB-write) is **out of scope** — see [§4 Transactional publishing](#4-transactional-publishing) for guidance.
 
 ---
 
@@ -36,12 +35,11 @@ The core (`bus-core`) is trait-only with **zero transport dependencies**, so you
   - [1. Connect with cluster URLs and credentials](#1-connect-with-cluster-urls-and-credentials)
   - [2. Configure JetStream for durability](#2-configure-jetstream-for-durability)
   - [3. Pick an idempotency backend](#3-pick-an-idempotency-backend)
-  - [4. Use the transactional outbox for state-mutating publishes](#4-use-the-transactional-outbox-for-state-mutating-publishes)
-  - [5. Run the outbox dispatcher as a sidecar](#5-run-the-outbox-dispatcher-as-a-sidecar)
-  - [6. Subscribe with retry, DLQ, and concurrency](#6-subscribe-with-retry-dlq-and-concurrency)
-  - [7. Handle errors: Transient vs Permanent](#7-handle-errors-transient-vs-permanent)
-  - [8. Graceful shutdown](#8-graceful-shutdown)
-  - [9. Observability](#9-observability)
+  - [4. Transactional publishing](#4-transactional-publishing)
+  - [5. Subscribe with retry, DLQ, and concurrency](#5-subscribe-with-retry-dlq-and-concurrency)
+  - [6. Handle errors: Transient vs Permanent](#6-handle-errors-transient-vs-permanent)
+  - [7. Graceful shutdown](#7-graceful-shutdown)
+  - [8. Observability](#8-observability)
 - [Cargo features](#cargo-features)
 - [Architecture](#architecture)
 - [Implementation status](#implementation-status)
@@ -58,8 +56,7 @@ The core (`bus-core`) is trait-only with **zero transport dependencies**, so you
 
 - **Typed events.** `#[derive(Event)]` validates subject templates at compile time and interpolates `{self.field}` into routing keys.
 - **Effectively-once delivery.** JetStream `Nats-Msg-Id` deduplication on the publish side + `IdempotencyStore` claim on the consume side.
-- **Transactional outbox.** Atomic `INSERT INTO eventbus_outbox` inside your business transaction, polled by a dispatcher that uses `SELECT … FOR UPDATE SKIP LOCKED`.
-- **Pluggable idempotency.** NATS KV (default), Redis, or Postgres — all behind a single `IdempotencyStore` trait.
+- **Pluggable idempotency.** NATS KV (default) or Redis — both behind a single `IdempotencyStore` trait.
 - **Per-consumer DLQ.** Permanent and exhausted-retry failures go to a per-consumer dead-letter stream with full failure metadata in headers.
 - **Circuit breaker + SQLite fallback.** When NATS is unavailable, publishes spool to disk and replay on recovery.
 - **Built for tokio.** Async-first, `Send + Sync` traits, `Arc`-cheap clones.
@@ -77,8 +74,6 @@ The core (`bus-core`) is trait-only with **zero transport dependencies**, so you
 event-bus = { git = "https://github.com/1hoodlabs/eventbus-rs", tag = "v0.1.0", features = [
     "macros",
     "nats-kv-inbox",
-    "postgres-outbox",
-    "postgres-inbox",
 ] }
 
 # Required peer deps for application code
@@ -86,7 +81,6 @@ serde      = { version = "1", features = ["derive"] }
 tokio      = { version = "1", features = ["full"] }
 uuid       = { version = "1", features = ["v7", "serde"] }
 async-trait = "0.1"
-sqlx       = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "json"] }  # for outbox
 ```
 
 **Minimum supported Rust version (MSRV):** `1.85.0` (the workspace uses **edition 2024**).
@@ -94,7 +88,6 @@ sqlx       = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "post
 **Runtime requirements:**
 
 - NATS Server **2.10+** with JetStream enabled
-- PostgreSQL **14+** (only if you use the outbox or Postgres idempotency store)
 - Redis **7+** (only if you use the `redis-inbox` feature)
 
 A `docker-compose.yml` is included at the repo root to spin up all three locally.
@@ -231,74 +224,23 @@ The bus requires **exactly one** `IdempotencyStore`. Pick by deployment topology
 | ------- | --------------- | ----------- |
 | **NATS KV** *(default)* | `bus-nats` / `nats-kv-inbox` | Default. No extra infra; rides on the NATS cluster you already run. |
 | **Redis** | `bus-nats` / `redis-inbox` | You already run Redis and want lower-latency `SET NX EX` semantics. |
-| **Postgres** | `bus-outbox` / `postgres-inbox` | Idempotency must be co-located with business state (e.g. financial workflows where the inbox row is part of the same audit trail). |
 
 ```rust
 // NATS KV (default)
 let store = bus_nats::NatsKvIdempotencyStore::new(js.clone(), Duration::from_secs(3600)).await?;
-
-// Postgres (co-located with business DB)
-# #[cfg(feature = "postgres-inbox")]
-let store = bus_outbox::PostgresIdempotencyStore::new(pg_pool.clone());
 
 // Redis
 # #[cfg(feature = "redis-inbox")]
 let store = bus_nats::RedisIdempotencyStore::new(redis_url, Duration::from_secs(3600)).await?;
 ```
 
-All three implement the same `IdempotencyStore` trait and use atomic compare-and-set semantics so concurrent JetStream redeliveries cannot run a handler twice.
+Both implement the same `IdempotencyStore` trait and use atomic compare-and-set semantics so concurrent JetStream redeliveries cannot run a handler twice.
 
-### 4. Use the transactional outbox for state-mutating publishes
+### 4. Transactional publishing
 
-`bus.publish()` writes directly to NATS. **If your event must reflect a database mutation, use the outbox instead** — otherwise a crash between commit and publish silently loses the event.
+`bus.publish()` writes directly to NATS. If you need an event publish to reflect a database mutation atomically (so a crash between commit and publish cannot drop the event), `eventbus-rs` does **not** ship that mechanism — implement the outbox pattern in your application: write an outbox row in the same transaction as the business write, then have a separate task read pending rows and call `Publisher::publish` from `bus-core`. The traits are designed to support this without forking.
 
-Run the migrations once per business database:
-
-```rust
-use bus_outbox::migrate::run_migrations;
-run_migrations(&pg_pool).await?;
-```
-
-This creates `eventbus_outbox`, `eventbus_inbox`, and `eventbus_sagas` tables.
-
-Then publish inside the same transaction as your business write:
-
-```rust
-use bus_outbox::PostgresOutboxStore;
-use bus_core::publisher::Publisher;
-
-let outbox = PostgresOutboxStore::new(pg_pool.clone());
-
-let mut tx = pg_pool.begin().await?;
-
-// 1. business write
-sqlx::query("INSERT INTO orders (id, total) VALUES ($1, $2)")
-    .bind(order_id)
-    .bind(total)
-    .execute(&mut *tx)
-    .await?;
-
-// 2. event write — same transaction, atomic with the business write
-outbox.insert(&mut tx, &OrderCreated { id: MessageId::new(), order_id, total }).await?;
-
-tx.commit().await?;
-```
-
-> **Outbox is database-bound.** The transactional outbox pattern requires the event row and the business row to commit in the same transaction. v1 ships **Postgres only** — see [`crates/bus-outbox/README.md`](crates/bus-outbox/README.md) for the roadmap on SQLite / MySQL / Mongo / Dynamo backends.
-
-### 5. Run the outbox dispatcher as a sidecar
-
-A separate task polls `eventbus_outbox` for `published_at IS NULL` rows and ships them to NATS. Run **one dispatcher per replica**; `SELECT … FOR UPDATE SKIP LOCKED` makes the polling safe to scale horizontally.
-
-```rust
-// Pseudocode — the dispatcher is wired up in bus-outbox::dispatcher (in progress, see Roadmap).
-// Until then, services can poll PostgresOutboxStore::fetch_pending() themselves
-// and call publisher.publish_with_headers() in a loop.
-```
-
-**Recommended polling cadence:** 250 ms with `LIMIT 100` per poll. Adds ~1 ms p50 latency vs. direct publish at ≤10k events/s.
-
-### 6. Subscribe with retry, DLQ, and concurrency
+### 5. Subscribe with retry, DLQ, and concurrency
 
 ```rust
 use bus_nats::{DlqConfig, DlqOptions, subscriber::SubscribeOptions};
@@ -339,7 +281,7 @@ let sub = bus.subscribe(
 
 Each subscription gets its own DLQ stream named `EVENTS_DLQ_<durable>` with the original headers (`X-Original-Subject`, `X-Original-Seq`, `X-Failure-Reason`, `X-Retry-Count`, …) preserved.
 
-### 7. Handle errors: Transient vs Permanent
+### 6. Handle errors: Transient vs Permanent
 
 The `HandlerError` discriminant controls whether JetStream retries the message:
 
@@ -363,7 +305,7 @@ Rule of thumb:
 - **Network blips, lock contention, 5xx upstream → `Transient`.** JetStream NAKs with the configured backoff; idempotency claim is released so the next attempt re-enters the handler.
 - **Bad payload, business rule violation, 4xx upstream → `Permanent`.** Goes straight to DLQ; no retry.
 
-### 8. Graceful shutdown
+### 7. Graceful shutdown
 
 ```rust
 tokio::signal::ctrl_c().await?;
@@ -373,7 +315,7 @@ bus.shutdown().await?;  // drains the NATS connection
 
 Dropping a `SubscriptionHandle` aborts both the outer message loop and every spawned per-message worker, so SIGTERM cleanup is bounded by `ack_wait`.
 
-### 9. Observability
+### 8. Observability
 
 Enable structured tracing via `tracing-subscriber`. With the `otel` feature (planned in `bus-telemetry`), the bus injects W3C `traceparent` headers on publish and extracts them on receive, so spans cross the wire. Metrics emitted:
 
@@ -381,7 +323,6 @@ Enable structured tracing via `tracing-subscriber`. With the `otel` feature (pla
 | ----------------------- | --------- | ----------------------------- |
 | `eventbus.publish.total`     | counter   | `subject`, `result`           |
 | `eventbus.consume.total`     | counter   | `stream`, `durable`, `result` |
-| `eventbus.outbox.pending`    | gauge     | —                             |
 | `eventbus.handle.duration`   | histogram | `durable`, `event_type`       |
 | `eventbus.dlq.total`         | counter   | `durable`, `reason`           |
 | `eventbus.jetstream.advisory.total` | counter   | `kind`, `stream`, `consumer` |
@@ -404,17 +345,12 @@ Planned advisory observability:
 | ------------- | ----------------- | ------- | ---------------------------------------------------------------------- |
 | `event-bus`   | `macros`          | yes     | Re-export `#[derive(Event)]` from `bus-macros`                         |
 | `event-bus`   | `nats-kv-inbox`   | yes     | NATS KV-backed `IdempotencyStore`                                      |
-| `event-bus`   | `postgres-inbox`  | no      | Postgres-backed `IdempotencyStore`                                     |
-| `event-bus`   | `postgres-outbox` | no      | Postgres-backed `OutboxStore` + dispatcher                             |
 | `event-bus`   | `redis-inbox`     | no      | Redis-backed `IdempotencyStore`                                        |
 | `event-bus`   | `sqlite-buffer`   | no      | Local-disk fallback buffer for offline publishing                      |
 | `event-bus`   | `otel`            | no      | OpenTelemetry spans + metrics (via `bus-telemetry`)                    |
-| `event-bus`   | `saga`            | no      | Choreography saga engine (requires `postgres-outbox`)                  |
 | `bus-nats`    | `nats-kv-inbox`   | yes     | (transitively enabled by `event-bus`)                                  |
 | `bus-nats`    | `redis-inbox`     | no      | (transitively enabled by `event-bus`)                                  |
-| `bus-outbox`  | `postgres-outbox` | yes     | (transitively enabled by `event-bus`)                                  |
-| `bus-outbox`  | `postgres-inbox`  | yes     | (transitively enabled by `event-bus`)                                  |
-| `bus-outbox`  | `sqlite-buffer`   | no      | (transitively enabled by `event-bus`)                                  |
+| `bus-nats`    | `sqlite-buffer`   | no      | (transitively enabled by `event-bus`)                                  |
 
 Minimal install (no Postgres, no macros):
 
@@ -430,11 +366,8 @@ event-bus = { git = "...", default-features = false, features = ["nats-kv-inbox"
 flowchart TD
     subgraph application["Application"]
         publish["bus.publish(event)"]
-        tx["BEGIN TX<br/>INSERT INTO orders ...<br/>outbox.insert(tx, event)<br/>COMMIT"]
         event_bus["EventBus"]
-        postgres_outbox["Postgres outbox row<br/>(pending)"]
         bus_nats["bus-nats<br/>(Publisher + Sub + CircuitBreaker + DLQ)"]
-        dispatcher["OutboxDispatcher<br/>SELECT ... FOR UPDATE<br/>SKIP LOCKED LIMIT 100"]
         jetstream["NATS JetStream<br/>stream: EVENTS (R3)<br/>dedup: 5 min"]
         pull_consumer["Pull consumer<br/>(semaphore-bounded)"]
         idempotency{"try_claim(msg_id)<br/>IdempotencyStore"}
@@ -444,11 +377,7 @@ flowchart TD
         dlq["publish to DLQ stream<br/>Term"]
 
         publish --> event_bus
-        tx --> postgres_outbox
-        tx --> event_bus
         event_bus --> bus_nats
-        postgres_outbox -->|"every 250 ms"| dispatcher
-        dispatcher --> jetstream
         bus_nats --> jetstream
         jetstream --> pull_consumer
         pull_consumer --> idempotency
@@ -460,7 +389,7 @@ flowchart TD
     end
 ```
 
-For the full v1.0 component diagram (saga engine, OTel, SQLite fallback, all crates), see [`docs/diagrams/`](docs/diagrams/).
+For the current component diagrams, see [`docs/diagrams/`](docs/diagrams/).
 
 ---
 
@@ -475,12 +404,8 @@ For the full v1.0 component diagram (saga engine, OTel, SQLite fallback, all cra
 | Circuit breaker (Closed/Open/HalfOpen)   | `bus-nats`                               | ✅ Shipped |
 | NATS KV idempotency store *(default)*    | `bus-nats` (`nats-kv-inbox`)             | ✅ Shipped |
 | Redis idempotency store                  | `bus-nats` (`redis-inbox`)               | ✅ Shipped |
-| Postgres outbox store                    | `bus-outbox` (`postgres-outbox`)         | ✅ Shipped |
-| Postgres idempotency store               | `bus-outbox` (`postgres-inbox`)          | ✅ Shipped |
-| SQLite fallback buffer                   | `bus-outbox` (`sqlite-buffer`)           | ✅ Shipped |
+| SQLite fallback buffer                   | `bus-nats` (`sqlite-buffer`)             | ✅ Shipped |
 | `EventBus` facade + builder              | `event-bus`                              | ✅ Shipped |
-| Outbox dispatcher (poll + relay loop)    | `bus-outbox::dispatcher`                 | 🚧 In progress |
-| Saga engine (choreography)               | `event-bus::saga`                        | 📋 Planned |
 | OTel spans + metrics                     | `bus-telemetry`                          | 📋 Planned |
 | `crates.io` publish                      | all crates                               | 📋 Planned (v0.1.0) |
 
@@ -491,13 +416,12 @@ For the full v1.0 component diagram (saga engine, OTel, SQLite fallback, all cra
 | Example | What it shows |
 | ------- | ------------- |
 | [`examples/01-basic-publish`](examples/01-basic-publish/)    | Publish + JetStream `Nats-Msg-Id` deduplication |
-| [`examples/02-outbox-postgres`](examples/02-outbox-postgres/) | *(deferred — depends on dispatcher)* |
 | [`examples/03-idempotent-handler`](examples/03-idempotent-handler/) | Subscribe with idempotent handler, prove exactly-once execution under duplicate publish |
 
 Run any example against the local docker-compose stack:
 
 ```bash
-docker compose up -d nats postgres
+docker compose up -d nats
 cargo run -p example-01-basic-publish -- nats://localhost:4222
 cargo run -p example-03-idempotent-handler -- nats://localhost:4222
 ```
@@ -512,14 +436,8 @@ Effectively-once. JetStream gives at-least-once at the wire level; the publish-s
 **Q: Why NATS JetStream and not Kafka / RabbitMQ / SQS?**
 JetStream gives ordered streams, server-side dedup windows, durable consumers, and KV — all in one binary, all with a permissive license, and with a clustered deployment that fits in a few hundred MB. Kafka and RabbitMQ are great; they're just heavier than what most teams need. The `bus-core` traits do not assume NATS — a `bus-kafka` backend would be a drop-in replacement.
 
-**Q: Do I need the outbox if I'm already using JetStream?**
-Yes, **if your event reflects a database write**. Without the outbox, a crash between `tx.commit()` and `bus.publish()` silently drops the event. The outbox makes the publish part of the same atomic commit.
-
 **Q: Can I use this without Postgres?**
-Yes. Drop the `postgres-*` features and use `nats-kv-inbox` or `redis-inbox` for idempotency. You'll lose the transactional outbox (no atomic publish-with-business-write), so it's only safe for fire-and-forget events.
-
-**Q: How do I migrate when the schema changes?**
-Embedded migrations live in `crates/bus-outbox/migrations/`. Run `bus_outbox::migrate::run_migrations(&pool)` on startup; it's idempotent (`IF NOT EXISTS`).
+Yes — `eventbus-rs` does not depend on Postgres at all. NATS-KV (default) or Redis idempotency cover all supported deployments.
 
 **Q: Is the API stable?**
 No — pre-1.0. Breaking changes are tracked in `CHANGELOG.md` and called out in release notes. Pin to a tag.
@@ -528,13 +446,13 @@ No — pre-1.0. Breaking changes are tracked in `CHANGELOG.md` and called out in
 
 ## Roadmap
 
-**v0.1** *(current)* — Core traits, NATS publisher/subscriber, KV/Redis/Postgres idempotency, Postgres outbox store, SQLite buffer, DLQ, circuit breaker.
+**v0.1** *(current)* — Core traits, NATS publisher/subscriber, KV/Redis idempotency, SQLite buffer, DLQ, circuit breaker.
 
-**v0.2** — Outbox dispatcher (polling relay loop), saga engine (choreography), OTel spans + metrics, `crates.io` publish.
+**v0.2** — `crates.io` publish, OTel spans + metrics.
 
-**v0.3** — Generic `OutboxStore<DB: sqlx::Database>`; SQLite + MySQL outbox backends. See [`crates/bus-outbox/README.md`](crates/bus-outbox/README.md#roadmap).
+**v0.3** — (Optional) additional transport backends (Kafka, Redis Streams) if user demand emerges.
 
-**v1.0** — API stability commitment, semver guarantees, per-backend crates for NoSQL outbox (Mongo / Dynamo).
+**v1.0** — API stability commitment, semver guarantees.
 
 Track progress under [GitHub milestones](https://github.com/1hoodlabs/eventbus-rs/milestones).
 
@@ -554,7 +472,7 @@ cargo fmt --all
 cargo clippy --workspace --all-features -- -D warnings
 cargo test --workspace
 cargo test -p bus-nats     # integration; requires Docker
-cargo test -p bus-outbox --features sqlite-buffer
+cargo test -p bus-nats --features sqlite-buffer
 ```
 
 ---
