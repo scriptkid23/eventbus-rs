@@ -15,14 +15,12 @@ macros        = ["dep:bus-macros"]
 nats-kv-inbox = ["bus-nats/nats-kv-inbox"]
 redis-inbox   = ["bus-nats/redis-inbox"]
 sqlite-buffer = ["bus-nats/sqlite-buffer"]
-otel          = ["dep:bus-telemetry"]
 
 [dependencies]
 async-trait   = { workspace = true }
 bus-core      = { path = "../bus-core" }
 bus-macros    = { path = "../bus-macros", optional = true }
 bus-nats      = { path = "../bus-nats" }
-bus-telemetry = { path = "../bus-telemetry", optional = true }
 serde         = { workspace = true }
 serde_json    = { workspace = true }
 tokio         = { workspace = true }
