@@ -16,11 +16,11 @@ pub enum CircuitState {
 }
 
 struct Inner {
-    window:            VecDeque<bool>,
-    window_size:       usize,
+    window: VecDeque<bool>,
+    window_size: usize,
     failure_threshold: f64,
-    opened_at:         Option<Instant>,
-    reset_timeout:     Duration,
+    opened_at: Option<Instant>,
+    reset_timeout: Duration,
 }
 
 impl Inner {

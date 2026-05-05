@@ -2,7 +2,11 @@ use bus_core::{MessageId, Publisher};
 use bus_macros::Event;
 use bus_nats::{NatsClient, NatsPublisher, StreamConfig};
 use serde::{Deserialize, Serialize};
-use testcontainers::{core::{IntoContainerPort, WaitFor}, runners::AsyncRunner, GenericImage, ImageExt};
+use testcontainers::{
+    GenericImage, ImageExt,
+    core::{IntoContainerPort, WaitFor},
+    runners::AsyncRunner,
+};
 
 async fn start_nats() -> (impl Drop, String) {
     let container = GenericImage::new("nats", "2.10-alpine")
@@ -29,11 +33,17 @@ struct TestEvent {
 #[tokio::test]
 async fn publish_returns_receipt_with_sequence() {
     let (_c, url) = start_nats().await;
-    let cfg = StreamConfig { num_replicas: 1, ..StreamConfig::default() };
+    let cfg = StreamConfig {
+        num_replicas: 1,
+        ..StreamConfig::default()
+    };
     let client = NatsClient::connect(&url, &cfg).await.unwrap();
     let publisher = NatsPublisher::new(client);
 
-    let evt = TestEvent { id: MessageId::new(), value: "hello".into() };
+    let evt = TestEvent {
+        id: MessageId::new(),
+        value: "hello".into(),
+    };
     let receipt = publisher.publish(&evt).await.unwrap();
 
     assert!(!receipt.duplicate);
@@ -45,16 +55,25 @@ async fn publish_returns_receipt_with_sequence() {
 #[tokio::test]
 async fn same_msg_id_is_deduplicated() {
     let (_c, url) = start_nats().await;
-    let cfg = StreamConfig { num_replicas: 1, ..StreamConfig::default() };
+    let cfg = StreamConfig {
+        num_replicas: 1,
+        ..StreamConfig::default()
+    };
     let client = NatsClient::connect(&url, &cfg).await.unwrap();
     let publisher = NatsPublisher::new(client);
 
-    let evt = TestEvent { id: MessageId::new(), value: "hello".into() };
+    let evt = TestEvent {
+        id: MessageId::new(),
+        value: "hello".into(),
+    };
 
     let r1 = publisher.publish(&evt).await.unwrap();
     let r2 = publisher.publish(&evt).await.unwrap();
 
     assert!(!r1.duplicate);
-    assert!(r2.duplicate, "second publish with same Nats-Msg-Id must be deduplicated");
+    assert!(
+        r2.duplicate,
+        "second publish with same Nats-Msg-Id must be deduplicated"
+    );
     assert_eq!(r1.sequence, r2.sequence, "dedup must return same sequence");
 }

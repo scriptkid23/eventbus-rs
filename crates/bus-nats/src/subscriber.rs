@@ -4,8 +4,8 @@ use crate::{
     consumer::build_pull_config,
     dlq::{
         CLASS_PERMANENT, CLASS_POISON, CLASS_TRANSIENT_EXHAUSTED, DlqOptions, FALLBACK_NAK_DELAY,
-        FailureInfo, REASON_HANDLER_PERMANENT, REASON_INVALID_PAYLOAD,
-        REASON_MAX_RETRIES_EXCEEDED, build_dlq_headers, dlq_subject, publish_to_dlq,
+        FailureInfo, REASON_HANDLER_PERMANENT, REASON_INVALID_PAYLOAD, REASON_MAX_RETRIES_EXCEEDED,
+        build_dlq_headers, dlq_subject, publish_to_dlq,
     },
 };
 use async_nats::jetstream::{

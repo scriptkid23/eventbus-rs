@@ -26,11 +26,7 @@ pub enum ClaimOutcome {
 pub trait IdempotencyStore: Send + Sync {
     /// State-aware claim. Atomically inserts the key in `pending` state if
     /// absent, otherwise reports the existing state.
-    async fn try_claim(
-        &self,
-        key: &MessageId,
-        ttl: Duration,
-    ) -> Result<ClaimOutcome, BusError>;
+    async fn try_claim(&self, key: &MessageId, ttl: Duration) -> Result<ClaimOutcome, BusError>;
 
     /// Mark a previously claimed key as successfully processed.
     async fn mark_done(&self, key: &MessageId) -> Result<(), BusError>;

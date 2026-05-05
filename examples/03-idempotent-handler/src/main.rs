@@ -5,15 +5,13 @@
 //!   cargo run -p example-03-idempotent-handler -- nats://localhost:4222
 
 use async_trait::async_trait;
-use bus_nats::{
-    subscriber::SubscribeOptions, NatsClient, NatsKvIdempotencyStore, StreamConfig,
-};
-use event_bus::{prelude::*, EventBusBuilder};
+use bus_nats::{NatsClient, NatsKvIdempotencyStore, StreamConfig, subscriber::SubscribeOptions};
+use event_bus::{EventBusBuilder, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::{
     sync::{
-        atomic::{AtomicU32, Ordering},
         Arc,
+        atomic::{AtomicU32, Ordering},
     },
     time::Duration,
 };
@@ -21,9 +19,9 @@ use std::{
 #[derive(Debug, Serialize, Deserialize, Event)]
 #[event(subject = "events.payments.processed")]
 struct PaymentProcessed {
-    id:         MessageId,
+    id: MessageId,
     payment_id: String,
-    amount:     i64,
+    amount: i64,
 }
 
 struct PaymentHandler {
@@ -32,11 +30,7 @@ struct PaymentHandler {
 
 #[async_trait]
 impl EventHandler<PaymentProcessed> for PaymentHandler {
-    async fn handle(
-        &self,
-        ctx: HandlerCtx,
-        evt: PaymentProcessed,
-    ) -> Result<(), HandlerError> {
+    async fn handle(&self, ctx: HandlerCtx, evt: PaymentProcessed) -> Result<(), HandlerError> {
         self.count.fetch_add(1, Ordering::SeqCst);
         println!(
             "[delivery #{}] payment_id={} amount={} msg_id={}",
@@ -85,9 +79,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Publish same event twice — handler must run exactly once
     let evt = PaymentProcessed {
-        id:         MessageId::new(),
+        id: MessageId::new(),
         payment_id: "pay-001".into(),
-        amount:     9999,
+        amount: 9999,
     };
     bus.publish(&evt).await?;
     bus.publish(&evt).await?; // duplicate — deduped

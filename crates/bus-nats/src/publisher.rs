@@ -1,7 +1,11 @@
 use crate::client::NatsClient;
 use async_nats::HeaderMap;
 use async_trait::async_trait;
-use bus_core::{error::BusError, event::Event, publisher::{PubReceipt, Publisher}};
+use bus_core::{
+    error::BusError,
+    event::Event,
+    publisher::{PubReceipt, Publisher},
+};
 use bytes::Bytes;
 
 /// NATS JetStream implementation of `Publisher`.
@@ -39,10 +43,10 @@ impl Publisher for NatsPublisher {
             .map_err(|e| BusError::Publish(e.to_string()))?;
 
         Ok(PubReceipt {
-            stream:    ack.stream.to_string(),
-            sequence:  ack.sequence,
+            stream: ack.stream.to_string(),
+            sequence: ack.sequence,
             duplicate: ack.duplicate,
-            buffered:  false,
+            buffered: false,
         })
     }
 }

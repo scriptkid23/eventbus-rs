@@ -1,4 +1,4 @@
-use crate::stream::{ensure_stream, StreamConfig};
+use crate::stream::{StreamConfig, ensure_stream};
 use async_nats::jetstream;
 use bus_core::error::BusError;
 

@@ -1,19 +1,18 @@
 use opentelemetry::{
-    global,
+    KeyValue, global,
     metrics::{Counter, Histogram},
-    KeyValue,
 };
 
 /// Holds all OTel metric instruments for eventbus-rs.
 /// Create once and share via `Arc`. Instruments record against the global meter provider.
 pub struct BusMetrics {
-    pub publish_total:       Counter<u64>,
+    pub publish_total: Counter<u64>,
     pub publish_duration_ms: Histogram<f64>,
-    pub consume_total:       Counter<u64>,
+    pub consume_total: Counter<u64>,
     pub consume_duration_ms: Histogram<f64>,
-    pub redeliveries_total:  Counter<u64>,
-    pub dlq_total:           Counter<u64>,
-    pub idempotency_hits:    Counter<u64>,
+    pub redeliveries_total: Counter<u64>,
+    pub dlq_total: Counter<u64>,
+    pub idempotency_hits: Counter<u64>,
 }
 
 impl BusMetrics {

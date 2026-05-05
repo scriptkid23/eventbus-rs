@@ -36,4 +36,3 @@ pub trait Publisher: Send + Sync {
         Ok(receipts)
     }
 }
-

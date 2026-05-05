@@ -6,10 +6,10 @@ pub mod consumer;
 pub mod dlq;
 pub mod inbox;
 pub mod publisher;
-pub mod stream;
-pub mod subscriber;
 #[cfg(feature = "sqlite-buffer")]
 pub mod sqlite_buffer;
+pub mod stream;
+pub mod subscriber;
 
 #[cfg(test)]
 pub(crate) mod testing;

@@ -3,12 +3,12 @@ use std::sync::{Arc, Mutex};
 
 /// A row from the SQLite fallback buffer.
 pub struct BufferRow {
-    pub id:         String,
-    pub subject:    String,
-    pub payload:    Vec<u8>,
-    pub headers:    String,
+    pub id: String,
+    pub subject: String,
+    pub payload: Vec<u8>,
+    pub headers: String,
     pub created_at: i64,
-    pub attempts:   i32,
+    pub attempts: i32,
 }
 
 /// Local SQLite buffer for storing events when NATS is unavailable.
@@ -50,10 +50,10 @@ impl SqliteBuffer {
     /// Insert an event into the buffer.
     pub fn insert(
         &self,
-        id:         &str,
-        subject:    &str,
-        payload:    &[u8],
-        headers:    &str,
+        id: &str,
+        subject: &str,
+        payload: &[u8],
+        headers: &str,
         created_at: i64,
     ) -> Result<(), rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
@@ -76,12 +76,12 @@ impl SqliteBuffer {
         )?;
         let rows = stmt.query_map(params![limit as i64], |r| {
             Ok(BufferRow {
-                id:         r.get(0)?,
-                subject:    r.get(1)?,
-                payload:    r.get(2)?,
-                headers:    r.get(3)?,
+                id: r.get(0)?,
+                subject: r.get(1)?,
+                payload: r.get(2)?,
+                headers: r.get(3)?,
                 created_at: r.get(4)?,
-                attempts:   r.get(5)?,
+                attempts: r.get(5)?,
             })
         })?;
         rows.collect()

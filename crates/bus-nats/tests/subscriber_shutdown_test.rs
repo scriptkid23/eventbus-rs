@@ -45,7 +45,7 @@ struct ShutdownEvent {
 }
 
 struct SlowHandler {
-    started:   Arc<AtomicU32>,
+    started: Arc<AtomicU32>,
     completed: Arc<AtomicU32>,
 }
 
@@ -84,7 +84,7 @@ async fn dropping_subscription_handle_aborts_in_flight_workers() {
             ..Default::default()
         },
         Arc::new(SlowHandler {
-            started:   started.clone(),
+            started: started.clone(),
             completed: completed.clone(),
         }),
         store,
@@ -93,16 +93,23 @@ async fn dropping_subscription_handle_aborts_in_flight_workers() {
     .unwrap();
 
     publisher
-        .publish(&ShutdownEvent { id: MessageId::new() })
+        .publish(&ShutdownEvent {
+            id: MessageId::new(),
+        })
         .await
         .unwrap();
     publisher
-        .publish(&ShutdownEvent { id: MessageId::new() })
+        .publish(&ShutdownEvent {
+            id: MessageId::new(),
+        })
         .await
         .unwrap();
 
     tokio::time::sleep(Duration::from_millis(500)).await;
-    assert!(started.load(Ordering::SeqCst) >= 1, "handler should have started");
+    assert!(
+        started.load(Ordering::SeqCst) >= 1,
+        "handler should have started"
+    );
 
     drop(handle);
     tokio::time::sleep(Duration::from_secs(6)).await;

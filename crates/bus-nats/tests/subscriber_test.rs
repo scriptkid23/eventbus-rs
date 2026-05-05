@@ -33,7 +33,7 @@ async fn start_nats() -> (impl Drop, String) {
 #[derive(Debug, Serialize, Deserialize, Event)]
 #[event(subject = "events.test.created")]
 struct TestEvent {
-    id:    MessageId,
+    id: MessageId,
     value: u32,
 }
 
@@ -78,7 +78,7 @@ async fn duplicate_event_handled_once() {
 
     // Publish same event twice (same message_id) — JetStream dedup drops the second
     let evt = TestEvent {
-        id:    MessageId::new(),
+        id: MessageId::new(),
         value: 42,
     };
     publisher.publish(&evt).await.unwrap();

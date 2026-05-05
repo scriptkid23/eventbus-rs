@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::{parse_macro_input, Attribute, Data, DeriveInput, Field, Fields, Lit, Type};
+use syn::{Attribute, Data, DeriveInput, Field, Fields, Lit, Type, parse_macro_input};
 
 pub fn derive_event_impl(input: TokenStream) -> TokenStream {
     let derive_input = parse_macro_input!(input as DeriveInput);
@@ -108,8 +108,7 @@ fn generate_event_impl(derive_input: &DeriveInput) -> syn::Result<TokenStream2> 
     }
 
     let field_idents: Vec<&syn::Ident> = fields.iter().filter_map(|f| f.ident.as_ref()).collect();
-    let subject_expression =
-        build_subject_expression(&subject_template, type_name, &field_idents)?;
+    let subject_expression = build_subject_expression(&subject_template, type_name, &field_idents)?;
 
     let aggregate_quoted = match aggregate.as_deref() {
         Some(value) => quote! { #value },

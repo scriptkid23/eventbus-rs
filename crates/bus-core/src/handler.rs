@@ -26,4 +26,3 @@ pub struct HandlerCtx {
 pub trait EventHandler<E: Event>: Send + Sync + 'static {
     async fn handle(&self, ctx: HandlerCtx, event: E) -> Result<(), HandlerError>;
 }
-

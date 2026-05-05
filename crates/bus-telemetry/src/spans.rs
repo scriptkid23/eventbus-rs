@@ -1,7 +1,7 @@
 use opentelemetry::{
+    Context,
     global::{self, BoxedSpan},
     trace::Tracer,
-    Context,
 };
 
 const TRACER_NAME: &str = "eventbus-rs";

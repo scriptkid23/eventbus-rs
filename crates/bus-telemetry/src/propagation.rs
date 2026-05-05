@@ -1,5 +1,5 @@
 use async_nats::HeaderMap;
-use opentelemetry::{global, Context};
+use opentelemetry::{Context, global};
 
 /// NATS header map adapter for OTel TextMap inject
 struct NatsHeaderInjector<'a>(&'a mut HeaderMap);

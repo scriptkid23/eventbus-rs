@@ -40,11 +40,7 @@ impl NatsKvIdempotencyStore {
 
 #[async_trait]
 impl IdempotencyStore for NatsKvIdempotencyStore {
-    async fn try_claim(
-        &self,
-        key: &MessageId,
-        _ttl: Duration,
-    ) -> Result<ClaimOutcome, BusError> {
+    async fn try_claim(&self, key: &MessageId, _ttl: Duration) -> Result<ClaimOutcome, BusError> {
         let key_str = key.to_string();
 
         match self

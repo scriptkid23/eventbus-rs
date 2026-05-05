@@ -36,4 +36,3 @@ pub enum BusError {
     #[error("nats unavailable")]
     NatsUnavailable,
 }
-

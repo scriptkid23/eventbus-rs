@@ -5,16 +5,16 @@
 //!   cargo run -p example-01-basic-publish -- nats://localhost:4222
 
 use bus_nats::{NatsClient, NatsKvIdempotencyStore, StreamConfig};
-use event_bus::{prelude::*, EventBusBuilder};
+use event_bus::{EventBusBuilder, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 #[derive(Debug, Serialize, Deserialize, Event)]
 #[event(subject = "events.orders.created", aggregate = "order")]
 struct OrderCreated {
-    id:       MessageId,
+    id: MessageId,
     order_id: String,
-    total:    i64,
+    total: i64,
 }
 
 #[tokio::main]
@@ -43,9 +43,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     let evt = OrderCreated {
-        id:       MessageId::new(),
+        id: MessageId::new(),
         order_id: "ord-001".into(),
-        total:    4999,
+        total: 4999,
     };
 
     // First publish

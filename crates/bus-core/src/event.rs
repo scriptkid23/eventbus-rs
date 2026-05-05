@@ -1,5 +1,5 @@
 use crate::id::MessageId;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::borrow::Cow;
 
 /// Marker trait for all events published through the event bus.
@@ -22,4 +22,3 @@ pub trait Event: Serialize + DeserializeOwned + Send + Sync + 'static {
         "default"
     }
 }
-

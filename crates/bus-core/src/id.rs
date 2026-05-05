@@ -42,4 +42,3 @@ impl FromStr for MessageId {
         Ok(Self(Uuid::parse_str(value)?))
     }
 }
-
