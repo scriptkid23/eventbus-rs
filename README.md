@@ -1,18 +1,18 @@
-<div align="center">
+
 
 # eventbus-rs
 
 **A typed async event bus for Rust — NATS JetStream with idempotent inbox, DLQ, and circuit breaker.**
 
-[![CI](https://img.shields.io/github/actions/workflow/status/1hoodlabs/eventbus-rs/ci.yml?branch=main&label=ci)](https://github.com/1hoodlabs/eventbus-rs/actions)
-[![Crates.io](https://img.shields.io/crates/v/event-bus.svg)](https://crates.io/crates/event-bus)
-[![Docs.rs](https://img.shields.io/docsrs/event-bus)](https://docs.rs/event-bus)
-[![MSRV](https://img.shields.io/badge/MSRV-1.85.0-blue.svg)](https://blog.rust-lang.org/)
-[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-green.svg)](#license)
+[CI](https://github.com/1hoodlabs/eventbus-rs/actions)
+[Crates.io](https://crates.io/crates/event-bus)
+[Docs.rs](https://docs.rs/event-bus)
+[MSRV](https://blog.rust-lang.org/)
+[License: MIT OR Apache-2.0](#license)
 
 [Docs](https://docs.rs/event-bus) · [Examples](examples/) · [Architecture](#architecture) · [Roadmap](#roadmap)
 
-</div>
+
 
 ---
 
@@ -172,7 +172,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-For more, see [`examples/01-basic-publish`](examples/01-basic-publish/) and [`examples/03-idempotent-handler`](examples/03-idempotent-handler/).
+For more, see `[examples/01-basic-publish](examples/01-basic-publish/)` and `[examples/03-idempotent-handler](examples/03-idempotent-handler/)`.
 
 ---
 
@@ -213,21 +213,25 @@ let stream_cfg = StreamConfig {
 
 **Sizing guidance:**
 
-| Setting             | Dev / single-node | Production               |
-| ------------------- | ----------------- | ------------------------ |
-| `num_replicas`      | `1`               | `3` (odd, ≥ 3 for quorum)|
-| `duplicate_window`  | `2 min`           | `5–15 min` (≥ p99 publish retry budget) |
-| `max_age`           | `1 day`           | `7–30 days` (compliance + replay budget) |
-| Storage             | File              | File on local SSD/NVMe   |
+
+| Setting            | Dev / single-node | Production                               |
+| ------------------ | ----------------- | ---------------------------------------- |
+| `num_replicas`     | `1`               | `3` (odd, ≥ 3 for quorum)                |
+| `duplicate_window` | `2 min`           | `5–15 min` (≥ p99 publish retry budget)  |
+| `max_age`          | `1 day`           | `7–30 days` (compliance + replay budget) |
+| Storage            | File              | File on local SSD/NVMe                   |
+
 
 ### 3. Pick an idempotency backend
 
 The bus requires **exactly one** `IdempotencyStore`. Pick by deployment topology:
 
-| Backend | Crate / feature | When to use |
-| ------- | --------------- | ----------- |
+
+| Backend                 | Crate / feature              | When to use                                                         |
+| ----------------------- | ---------------------------- | ------------------------------------------------------------------- |
 | **NATS KV** *(default)* | `bus-nats` / `nats-kv-inbox` | Default. No extra infra; rides on the NATS cluster you already run. |
-| **Redis** | `bus-nats` / `redis-inbox` | You already run Redis and want lower-latency `SET NX EX` semantics. |
+| **Redis**               | `bus-nats` / `redis-inbox`   | You already run Redis and want lower-latency `SET NX EX` semantics. |
+
 
 ```rust
 // NATS KV (default)
@@ -298,7 +302,7 @@ impl EventHandler<PaymentProcessed> for PaymentHandler {
         match charge_card(&evt).await {
             Ok(_)                       => Ok(()),
             Err(e) if e.is_temporary()  => Err(HandlerError::Transient(e.to_string())), // NAK + retry with backoff
-            Err(e)                      => Err(HandlerError::Permanent(e.to_string())), // Term → DLQ immediately
+            Err(e)                      => Err(HandlerError::Permanenrat(e.to_string())), // Term → DLQ immediately
         }
     }
 }
@@ -327,15 +331,17 @@ Dropping a `SubscriptionHandle` aborts both the outer message loop and every spa
 
 ## Cargo features
 
-| Crate         | Feature           | Default | Description                                                            |
-| ------------- | ----------------- | ------- | ---------------------------------------------------------------------- |
-| `event-bus`   | `macros`          | yes     | Re-export `#[derive(Event)]` from `bus-macros`                         |
-| `event-bus`   | `nats-kv-inbox`   | yes     | NATS KV-backed `IdempotencyStore`                                      |
-| `event-bus`   | `redis-inbox`     | no      | Redis-backed `IdempotencyStore`                                        |
-| `event-bus`   | `sqlite-buffer`   | no      | Local-disk fallback buffer for offline publishing                      |
-| `bus-nats`    | `nats-kv-inbox`   | yes     | (transitively enabled by `event-bus`)                                  |
-| `bus-nats`    | `redis-inbox`     | no      | (transitively enabled by `event-bus`)                                  |
-| `bus-nats`    | `sqlite-buffer`   | no      | (transitively enabled by `event-bus`)                                  |
+
+| Crate       | Feature         | Default | Description                                       |
+| ----------- | --------------- | ------- | ------------------------------------------------- |
+| `event-bus` | `macros`        | yes     | Re-export `#[derive(Event)]` from `bus-macros`    |
+| `event-bus` | `nats-kv-inbox` | yes     | NATS KV-backed `IdempotencyStore`                 |
+| `event-bus` | `redis-inbox`   | no      | Redis-backed `IdempotencyStore`                   |
+| `event-bus` | `sqlite-buffer` | no      | Local-disk fallback buffer for offline publishing |
+| `bus-nats`  | `nats-kv-inbox` | yes     | (transitively enabled by `event-bus`)             |
+| `bus-nats`  | `redis-inbox`   | no      | (transitively enabled by `event-bus`)             |
+| `bus-nats`  | `sqlite-buffer` | no      | (transitively enabled by `event-bus`)             |
+
 
 Minimal install (no Postgres, no macros):
 
@@ -374,33 +380,39 @@ flowchart TD
     end
 ```
 
-For the current component diagrams, see [`docs/diagrams/`](docs/diagrams/).
+
+
+For the current component diagrams, see `[docs/diagrams/](docs/diagrams/)`.
 
 ---
 
 ## Implementation status
 
-| Component                                | Crate                                    | Status     |
-| ---------------------------------------- | ---------------------------------------- | ---------- |
-| Traits, `MessageId`, `BusError`          | `bus-core`                               | ✅ Shipped |
-| `#[derive(Event)]` + compile-fail tests  | `bus-macros`                             | ✅ Shipped |
-| NATS JetStream `Publisher`               | `bus-nats`                               | ✅ Shipped |
-| Pull consumer + retry + DLQ              | `bus-nats`                               | ✅ Shipped |
-| Circuit breaker (Closed/Open/HalfOpen)   | `bus-nats`                               | ✅ Shipped |
-| NATS KV idempotency store *(default)*    | `bus-nats` (`nats-kv-inbox`)             | ✅ Shipped |
-| Redis idempotency store                  | `bus-nats` (`redis-inbox`)               | ✅ Shipped |
-| SQLite fallback buffer                   | `bus-nats` (`sqlite-buffer`)             | ✅ Shipped |
-| `EventBus` facade + builder              | `event-bus`                              | ✅ Shipped |
-| `crates.io` publish                      | all crates                               | 📋 Planned (v0.1.0) |
+
+| Component                               | Crate                        | Status              |
+| --------------------------------------- | ---------------------------- | ------------------- |
+| Traits, `MessageId`, `BusError`         | `bus-core`                   | ✅ Shipped           |
+| `#[derive(Event)]` + compile-fail tests | `bus-macros`                 | ✅ Shipped           |
+| NATS JetStream `Publisher`              | `bus-nats`                   | ✅ Shipped           |
+| Pull consumer + retry + DLQ             | `bus-nats`                   | ✅ Shipped           |
+| Circuit breaker (Closed/Open/HalfOpen)  | `bus-nats`                   | ✅ Shipped           |
+| NATS KV idempotency store *(default)*   | `bus-nats` (`nats-kv-inbox`) | ✅ Shipped           |
+| Redis idempotency store                 | `bus-nats` (`redis-inbox`)   | ✅ Shipped           |
+| SQLite fallback buffer                  | `bus-nats` (`sqlite-buffer`) | ✅ Shipped           |
+| `EventBus` facade + builder             | `event-bus`                  | ✅ Shipped           |
+| `crates.io` publish                     | all crates                   | 📋 Planned (v0.1.0) |
+
 
 ---
 
 ## Examples
 
-| Example | What it shows |
-| ------- | ------------- |
-| [`examples/01-basic-publish`](examples/01-basic-publish/)    | Publish + JetStream `Nats-Msg-Id` deduplication |
-| [`examples/03-idempotent-handler`](examples/03-idempotent-handler/) | Subscribe with idempotent handler, prove exactly-once execution under duplicate publish |
+
+| Example                                                             | What it shows                                                                           |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `[examples/01-basic-publish](examples/01-basic-publish/)`           | Publish + JetStream `Nats-Msg-Id` deduplication                                         |
+| `[examples/03-idempotent-handler](examples/03-idempotent-handler/)` | Subscribe with idempotent handler, prove exactly-once execution under duplicate publish |
+
 
 Run any example against the local docker-compose stack:
 
@@ -471,8 +483,8 @@ If you discover a security issue, **do not** file a public issue. Email `tech@me
 
 Licensed under either of
 
-- Apache License, Version 2.0 ([`LICENSE`](LICENSE) or <https://www.apache.org/licenses/LICENSE-2.0>)
-- MIT license ([`LICENSE-MIT`](LICENSE-MIT) — *to be added* — or <https://opensource.org/licenses/MIT>)
+- Apache License, Version 2.0 (`[LICENSE](LICENSE)` or [https://www.apache.org/licenses/LICENSE-2.0](https://www.apache.org/licenses/LICENSE-2.0))
+- MIT license (`[LICENSE-MIT](LICENSE-MIT)` — *to be added* — or [https://opensource.org/licenses/MIT](https://opensource.org/licenses/MIT))
 
 at your option.
 
