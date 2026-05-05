@@ -36,17 +36,10 @@ flowchart TB
         sqliteBuffer["SqliteBuffer"]
     end
 
-    subgraph telemetry [bus-telemetry optional]
-        inject["inject_context"]
-        extract["extract_context"]
-        metrics["publish and consume metrics"]
-    end
-
     subgraph external [External systems]
         jetstream[("NATS JetStream")]
         redis[("Redis")]
         sqlite[("SQLite local buffer")]
-        otel[("OTel collector")]
     end
 
     deriveEvent -.-> eventTrait
@@ -71,11 +64,6 @@ flowchart TB
     kvStore --> jetstream
     redisStore --> redis
     sqliteBuffer --> sqlite
-
-    natsPublisher --> inject
-    subscriber --> extract
-    extract --> metrics
-    metrics --> otel
 ```
 
 ## Key Flows
