@@ -29,11 +29,10 @@ tracing     = { workspace = true }
 uuid        = { workspace = true }
 
 [dev-dependencies]
-testcontainers         = { workspace = true }
-testcontainers-modules = { workspace = true }
-tokio                  = { workspace = true }
-serde                  = { workspace = true, features = ["derive"] }
-bus-macros             = { path = "../bus-macros" }
+bus-macros       = { path = "../bus-macros" }
+serde            = { workspace = true, features = ["derive"] }
+testcontainers   = { workspace = true }
+tokio            = { workspace = true }
 
 [[test]]
 name              = "sqlite_test"

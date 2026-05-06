@@ -28,9 +28,8 @@ tracing       = { workspace = true }
 uuid          = { workspace = true }
 
 [dev-dependencies]
-async-trait            = { workspace = true }
-bus-macros             = { path = "../bus-macros" }
-serde                  = { workspace = true, features = ["derive"] }
-testcontainers         = { workspace = true }
-testcontainers-modules = { workspace = true }
-tokio                  = { workspace = true }
+async-trait    = { workspace = true }
+bus-macros     = { path = "../bus-macros" }
+serde          = { workspace = true, features = ["derive"] }
+testcontainers = { workspace = true }
+tokio          = { workspace = true }
