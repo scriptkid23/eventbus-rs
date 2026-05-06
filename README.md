@@ -446,11 +446,11 @@ No — pre-1.0. Breaking changes are tracked in `CHANGELOG.md` and called out in
 
 **v0.2** — `crates.io` publish.
 
-**v0.3** — (Optional) additional transport backends (Kafka, Redis Streams) if user demand emerges.
+**v0.3** — (Optional) additional transport backends (Kafka, RabbitMQ, Redis Streams) if user demand emerges.
 
 **v1.0** — API stability commitment, semver guarantees.
 
-Track progress under [GitHub milestones](https://github.com/1hoodlabs/eventbus-rs/milestones).
+Track progress under [GitHub milestones](https://github.com/scriptkid23/eventbus-rs/milestones).
 
 ---
 
