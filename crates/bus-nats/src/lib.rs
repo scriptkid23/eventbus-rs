@@ -5,8 +5,6 @@ pub mod consumer;
 pub mod dlq;
 pub mod inbox;
 pub mod publisher;
-#[cfg(feature = "sqlite-buffer")]
-pub mod sqlite_buffer;
 pub mod stream;
 pub mod subscriber;
 
@@ -27,6 +25,3 @@ pub use inbox::nats_kv::NatsKvIdempotencyStore;
 
 #[cfg(feature = "redis-inbox")]
 pub use inbox::redis::RedisIdempotencyStore;
-
-#[cfg(feature = "sqlite-buffer")]
-pub use sqlite_buffer::{BufferRow, SqliteBuffer};
