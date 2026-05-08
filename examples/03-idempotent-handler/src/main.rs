@@ -6,7 +6,7 @@
 
 use async_trait::async_trait;
 use bus_nats::{
-    NatsClient, NatsKvIdempotencyStore, StreamConfig,
+    NatsClient, NatsKvIdempotencyConfig, NatsKvIdempotencyStore, StreamConfig,
     advisory::{AdvisoryLogOptions, spawn_jetstream_advisory_logger},
     subscriber::SubscribeOptions,
 };
@@ -58,8 +58,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = NatsClient::connect(&url, &stream_cfg).await?;
     let _advisory_logger =
         spawn_jetstream_advisory_logger(client.jetstream(), AdvisoryLogOptions::default()).await?;
-    let store =
-        NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(3600)).await?;
+    let store = NatsKvIdempotencyStore::new(
+        client.jetstream().clone(),
+        NatsKvIdempotencyConfig {
+            num_replicas: 1,
+            max_age: Duration::from_secs(3600),
+            ..Default::default()
+        },
+    )
+    .await?;
 
     let count = Arc::new(AtomicU32::new(0));
     let bus = EventBusBuilder::new()

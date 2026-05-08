@@ -29,17 +29,14 @@ flowchart TB
         natsClient["NatsClient"]
         natsPublisher["NatsPublisher"]
         subscriber["subscriber"]
-        circuitBreaker["CircuitBreaker"]
         dlq["DLQ helpers"]
         kvStore["NatsKvIdempotencyStore"]
         redisStore["RedisIdempotencyStore"]
-        sqliteBuffer["SqliteBuffer"]
     end
 
     subgraph external [External systems]
         jetstream[("NATS JetStream")]
         redis[("Redis")]
-        sqlite[("SQLite local buffer")]
     end
 
     deriveEvent -.-> eventTrait
@@ -52,10 +49,7 @@ flowchart TB
 
     appCode -->|"publish and subscribe"| bus
     bus --> natsPublisher
-    natsPublisher --> circuitBreaker
-    circuitBreaker -->|"healthy"| jetstream
-    circuitBreaker -->|"unavailable"| sqliteBuffer
-    sqliteBuffer -->|"replay on recovery"| jetstream
+    natsPublisher --> jetstream
 
     jetstream --> subscriber
     subscriber --> handlerTrait
@@ -63,15 +57,12 @@ flowchart TB
     dlq --> jetstream
     kvStore --> jetstream
     redisStore --> redis
-    sqliteBuffer --> sqlite
 ```
 
 ## Key Flows
 
 ### Publish
-`Application` -> `EventBus` -> `NatsPublisher` -> `CircuitBreaker` -> `NATS JetStream`
-
-If NATS is unavailable: `CircuitBreaker` -> `SqliteBuffer` -> replay to JetStream on recovery.
+`Application` -> `EventBus` -> `NatsPublisher` -> `NATS JetStream`
 
 ### Consume
 `NATS JetStream` -> `subscriber` -> `IdempotencyStore` -> `EventHandler` -> ACK/NAK/Term -> optional DLQ publish.

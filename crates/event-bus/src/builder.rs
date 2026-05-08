@@ -1,14 +1,13 @@
 use crate::bus::EventBus;
 use bus_core::{error::BusError, idempotency::IdempotencyStore};
 use bus_nats::{DlqConfig, NatsClient, StreamConfig};
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 pub struct EventBusBuilder {
     url: Option<String>,
     stream_cfg: StreamConfig,
     idempotency: Option<Arc<dyn IdempotencyStore>>,
-    sqlite_path: Option<PathBuf>,
-    otel: bool,
+    _otel: bool,
     dlq: Option<DlqConfig>,
 }
 
@@ -18,8 +17,7 @@ impl EventBusBuilder {
             url: None,
             stream_cfg: StreamConfig::default(),
             idempotency: None,
-            sqlite_path: None,
-            otel: false,
+            _otel: false,
             dlq: None,
         }
     }
@@ -55,13 +53,8 @@ impl EventBusBuilder {
         self
     }
 
-    pub fn sqlite_buffer(mut self, path: impl Into<PathBuf>) -> Self {
-        self.sqlite_path = Some(path.into());
-        self
-    }
-
     pub fn with_otel(mut self) -> Self {
-        self.otel = true;
+        self._otel = true;
         self
     }
 

@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use bus_core::{EventHandler, HandlerCtx, HandlerError, MessageId};
 use bus_macros::Event;
-use bus_nats::{DlqConfig, NatsKvIdempotencyStore, StreamConfig, SubscribeOptions};
+use bus_nats::{
+    DlqConfig, NatsKvIdempotencyConfig, NatsKvIdempotencyStore, StreamConfig, SubscribeOptions,
+};
 use event_bus::EventBusBuilder;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -76,9 +78,16 @@ async fn builder_connects_and_publishes() {
         ..Default::default()
     };
     let client = connect_client(&url, &stream_cfg).await;
-    let store = NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(3600))
-        .await
-        .unwrap();
+    let store = NatsKvIdempotencyStore::new(
+        client.jetstream().clone(),
+        NatsKvIdempotencyConfig {
+            num_replicas: 1,
+            max_age: Duration::from_secs(3600),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
 
     let bus = EventBusBuilder::new()
         .url(&url)
@@ -107,9 +116,16 @@ async fn builder_with_dlq_auto_wires_per_consumer_dlq_stream() {
         ..Default::default()
     };
     let client = connect_client(&url, &stream_cfg).await;
-    let store = NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(3600))
-        .await
-        .unwrap();
+    let store = NatsKvIdempotencyStore::new(
+        client.jetstream().clone(),
+        NatsKvIdempotencyConfig {
+            num_replicas: 1,
+            max_age: Duration::from_secs(3600),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
 
     let bus = EventBusBuilder::new()
         .url(&url)

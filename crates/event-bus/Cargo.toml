@@ -14,7 +14,6 @@ default       = ["macros", "nats-kv-inbox"]
 macros        = ["dep:bus-macros"]
 nats-kv-inbox = ["bus-nats/nats-kv-inbox"]
 redis-inbox   = ["bus-nats/redis-inbox"]
-sqlite-buffer = ["bus-nats/sqlite-buffer"]
 
 [dependencies]
 async-trait   = { workspace = true }

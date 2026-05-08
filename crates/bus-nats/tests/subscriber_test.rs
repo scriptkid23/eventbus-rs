@@ -2,7 +2,10 @@ use async_trait::async_trait;
 use bus_core::{EventHandler, HandlerCtx, HandlerError, MessageId, Publisher};
 use bus_macros::Event;
 use bus_nats::subscriber::subscribe;
-use bus_nats::{NatsClient, NatsKvIdempotencyStore, NatsPublisher, StreamConfig, SubscribeOptions};
+use bus_nats::{
+    NatsClient, NatsKvIdempotencyConfig, NatsKvIdempotencyStore, NatsPublisher, StreamConfig,
+    SubscribeOptions,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     sync::{
@@ -57,9 +60,16 @@ async fn duplicate_event_handled_once() {
     let client = NatsClient::connect(&url, &cfg).await.unwrap();
     let publisher = NatsPublisher::new(client.clone());
     let store = Arc::new(
-        NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(60))
-            .await
-            .unwrap(),
+        NatsKvIdempotencyStore::new(
+            client.jetstream().clone(),
+            NatsKvIdempotencyConfig {
+                num_replicas: 1,
+                max_age: Duration::from_secs(60),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap(),
     );
 
     let counter = Arc::new(AtomicU32::new(0));

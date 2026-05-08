@@ -9,7 +9,10 @@ use bus_nats::dlq::{
     publish_to_dlq,
 };
 use bus_nats::subscriber::subscribe;
-use bus_nats::{NatsClient, NatsKvIdempotencyStore, NatsPublisher, StreamConfig, SubscribeOptions};
+use bus_nats::{
+    NatsClient, NatsKvIdempotencyConfig, NatsKvIdempotencyStore, NatsPublisher, StreamConfig,
+    SubscribeOptions,
+};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -108,16 +111,6 @@ impl EventHandler<DlqTestEvent> for TimingHandler {
     async fn handle(&self, _ctx: HandlerCtx, _evt: DlqTestEvent) -> Result<(), HandlerError> {
         self.0.lock().await.push(std::time::Instant::now());
         Err(HandlerError::Transient("retrying".into()))
-    }
-}
-
-struct CountingPermanent(Arc<AtomicU32>);
-
-#[async_trait]
-impl EventHandler<DlqTestEvent> for CountingPermanent {
-    async fn handle(&self, _ctx: HandlerCtx, _evt: DlqTestEvent) -> Result<(), HandlerError> {
-        self.0.fetch_add(1, Ordering::SeqCst);
-        Err(HandlerError::Permanent("always fails".into()))
     }
 }
 
@@ -386,9 +379,16 @@ async fn permanent_error_publishes_to_dlq_with_enriched_headers() {
     let client = connect_nats_client(&url).await;
     let publisher = NatsPublisher::new(client.clone());
     let store = Arc::new(
-        NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(60))
-            .await
-            .unwrap(),
+        NatsKvIdempotencyStore::new(
+            client.jetstream().clone(),
+            NatsKvIdempotencyConfig {
+                num_replicas: 1,
+                max_age: Duration::from_secs(60),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap(),
     );
     let dlq_config = DlqConfig {
         num_replicas: 1,
@@ -462,9 +462,16 @@ async fn deserialize_failure_publishes_to_dlq_as_poison() {
     let (_container, url) = start_nats().await;
     let client = connect_nats_client(&url).await;
     let store = Arc::new(
-        NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(60))
-            .await
-            .unwrap(),
+        NatsKvIdempotencyStore::new(
+            client.jetstream().clone(),
+            NatsKvIdempotencyConfig {
+                num_replicas: 1,
+                max_age: Duration::from_secs(60),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap(),
     );
     let dlq_config = DlqConfig {
         num_replicas: 1,
@@ -532,9 +539,16 @@ async fn transient_exhausting_max_deliver_publishes_to_dlq() {
     let client = connect_nats_client(&url).await;
     let publisher = NatsPublisher::new(client.clone());
     let store = Arc::new(
-        NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(60))
-            .await
-            .unwrap(),
+        NatsKvIdempotencyStore::new(
+            client.jetstream().clone(),
+            NatsKvIdempotencyConfig {
+                num_replicas: 1,
+                max_age: Duration::from_secs(60),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap(),
     );
     let dlq_config = DlqConfig {
         num_replicas: 1,
@@ -612,9 +626,16 @@ async fn transient_nak_uses_configured_backoff() {
     let client = connect_nats_client(&url).await;
     let publisher = NatsPublisher::new(client.clone());
     let store = Arc::new(
-        NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(60))
-            .await
-            .unwrap(),
+        NatsKvIdempotencyStore::new(
+            client.jetstream().clone(),
+            NatsKvIdempotencyConfig {
+                num_replicas: 1,
+                max_age: Duration::from_secs(60),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap(),
     );
     let dlq_config = DlqConfig {
         num_replicas: 1,
@@ -670,57 +691,6 @@ async fn transient_nak_uses_configured_backoff() {
     assert!(gap_two >= Duration::from_millis(700), "gap: {gap_two:?}");
 }
 
-#[tokio::test]
-async fn dlq_publish_failure_naks_original_handler_invoked_max_deliver_times() {
-    let (_container, url) = start_nats().await;
-    let client = connect_nats_client(&url).await;
-    let publisher = NatsPublisher::new(client.clone());
-    let store = Arc::new(
-        NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(60))
-            .await
-            .unwrap(),
-    );
-
-    let counter = Arc::new(AtomicU32::new(0));
-    let options = SubscribeOptions {
-        durable: "no-dlq-stream".into(),
-        filter: "events.dlq.>".into(),
-        max_deliver: 3,
-        ack_wait: Duration::from_secs(1),
-        backoff: vec![Duration::from_millis(100), Duration::from_millis(100)],
-        dlq: Some(DlqOptions {
-            config: DlqConfig {
-                num_replicas: 1,
-                failure_nak_delay: Duration::from_millis(200),
-                publish_ack_timeout: Some(Duration::from_millis(500)),
-                ..Default::default()
-            },
-        }),
-        ..Default::default()
-    };
-
-    let _handle = subscribe::<DlqTestEvent, _, _>(
-        client.clone(),
-        options,
-        Arc::new(CountingPermanent(counter.clone())),
-        store,
-    )
-    .await
-    .unwrap();
-
-    publisher
-        .publish(&DlqTestEvent {
-            id: MessageId::new(),
-            value: 1,
-        })
-        .await
-        .unwrap();
-
-    tokio::time::sleep(Duration::from_secs(6)).await;
-
-    assert_eq!(counter.load(Ordering::SeqCst), 3);
-}
-
 struct CountingHandler {
     counter: Arc<AtomicU32>,
 }
@@ -739,9 +709,16 @@ async fn already_done_message_is_acked_without_invoking_handler() {
     let client = connect_nats_client(&url).await;
     let publisher = NatsPublisher::new(client.clone());
     let store = Arc::new(
-        NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(60))
-            .await
-            .unwrap(),
+        NatsKvIdempotencyStore::new(
+            client.jetstream().clone(),
+            NatsKvIdempotencyConfig {
+                num_replicas: 1,
+                max_age: Duration::from_secs(60),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap(),
     );
 
     // Pre-mark a message-id as done. When the subscriber sees a published

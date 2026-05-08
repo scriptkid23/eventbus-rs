@@ -31,3 +31,7 @@ bus-macros       = { path = "../bus-macros" }
 serde            = { workspace = true, features = ["derive"] }
 testcontainers   = { workspace = true }
 tokio            = { workspace = true }
+
+[[test]]
+name              = "inbox_redis_test"
+required-features = ["redis-inbox"]

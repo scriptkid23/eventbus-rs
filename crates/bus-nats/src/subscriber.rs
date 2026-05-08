@@ -130,6 +130,14 @@ where
         .await
         .map_err(|e| BusError::Nats(e.to_string()))?;
 
+    if let Some(dlq_opts) = opts.dlq.as_ref() {
+        let dlq_stream_name = crate::dlq::dlq_stream_name(&opts.stream, &opts.durable);
+        let dlq_subject = crate::dlq::dlq_subject(&opts.stream, &opts.durable);
+        crate::dlq::ensure_dlq_stream(&client.js, &dlq_stream_name, &dlq_subject, &dlq_opts.config)
+            .await
+            .map_err(|e| BusError::Nats(format!("ensure dlq stream {dlq_stream_name}: {e}")))?;
+    }
+
     let semaphore = Arc::new(Semaphore::new(opts.concurrency));
     let processing_options = ProcessingOptions {
         dlq_opts: opts.dlq.clone(),

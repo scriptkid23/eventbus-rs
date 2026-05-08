@@ -2,7 +2,10 @@ use async_trait::async_trait;
 use bus_core::{EventHandler, HandlerCtx, HandlerError, MessageId, Publisher};
 use bus_macros::Event;
 use bus_nats::subscriber::subscribe;
-use bus_nats::{NatsClient, NatsKvIdempotencyStore, NatsPublisher, StreamConfig, SubscribeOptions};
+use bus_nats::{
+    NatsClient, NatsKvIdempotencyConfig, NatsKvIdempotencyStore, NatsPublisher, StreamConfig,
+    SubscribeOptions,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     sync::{
@@ -65,9 +68,16 @@ async fn dropping_subscription_handle_aborts_in_flight_workers() {
     let client = connect_client(&url).await;
     let publisher = NatsPublisher::new(client.clone());
     let store = Arc::new(
-        NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(60))
-            .await
-            .unwrap(),
+        NatsKvIdempotencyStore::new(
+            client.jetstream().clone(),
+            NatsKvIdempotencyConfig {
+                num_replicas: 1,
+                max_age: Duration::from_secs(60),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap(),
     );
 
     let started = Arc::new(AtomicU32::new(0));

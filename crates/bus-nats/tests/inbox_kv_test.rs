@@ -1,5 +1,5 @@
 use bus_core::{ClaimOutcome, IdempotencyStore, MessageId};
-use bus_nats::{NatsClient, NatsKvIdempotencyStore, StreamConfig};
+use bus_nats::{NatsClient, NatsKvIdempotencyConfig, NatsKvIdempotencyStore, StreamConfig};
 use std::time::Duration;
 use testcontainers::{
     ContainerAsync, GenericImage, ImageExt,
@@ -43,9 +43,16 @@ async fn connect_client(url: &str) -> NatsClient {
 async fn first_claim_returns_claimed() {
     let (_c, url) = start_nats().await;
     let client = connect_client(&url).await;
-    let store = NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(60))
-        .await
-        .unwrap();
+    let store = NatsKvIdempotencyStore::new(
+        client.jetstream().clone(),
+        NatsKvIdempotencyConfig {
+            num_replicas: 1,
+            max_age: Duration::from_secs(60),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
 
     let id = MessageId::new();
     let outcome = store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
@@ -56,9 +63,16 @@ async fn first_claim_returns_claimed() {
 async fn second_claim_on_pending_returns_already_pending() {
     let (_c, url) = start_nats().await;
     let client = connect_client(&url).await;
-    let store = NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(60))
-        .await
-        .unwrap();
+    let store = NatsKvIdempotencyStore::new(
+        client.jetstream().clone(),
+        NatsKvIdempotencyConfig {
+            num_replicas: 1,
+            max_age: Duration::from_secs(60),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
 
     let id = MessageId::new();
     store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
@@ -70,9 +84,16 @@ async fn second_claim_on_pending_returns_already_pending() {
 async fn claim_after_mark_done_returns_already_done() {
     let (_c, url) = start_nats().await;
     let client = connect_client(&url).await;
-    let store = NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(60))
-        .await
-        .unwrap();
+    let store = NatsKvIdempotencyStore::new(
+        client.jetstream().clone(),
+        NatsKvIdempotencyConfig {
+            num_replicas: 1,
+            max_age: Duration::from_secs(60),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
 
     let id = MessageId::new();
     store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
@@ -86,9 +107,16 @@ async fn claim_after_mark_done_returns_already_done() {
 async fn claim_after_release_returns_claimed_again() {
     let (_c, url) = start_nats().await;
     let client = connect_client(&url).await;
-    let store = NatsKvIdempotencyStore::new(client.jetstream().clone(), Duration::from_secs(60))
-        .await
-        .unwrap();
+    let store = NatsKvIdempotencyStore::new(
+        client.jetstream().clone(),
+        NatsKvIdempotencyConfig {
+            num_replicas: 1,
+            max_age: Duration::from_secs(60),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
 
     let id = MessageId::new();
     store.try_claim(&id, Duration::from_secs(60)).await.unwrap();

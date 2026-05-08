@@ -10,6 +10,3 @@ pub use bus_macros::Event;
 pub use bus_nats::NatsKvIdempotencyStore;
 
 pub use bus_nats::{DlqConfig, DlqOptions};
-
-#[cfg(feature = "sqlite-buffer")]
-pub use bus_nats::SqliteBuffer;

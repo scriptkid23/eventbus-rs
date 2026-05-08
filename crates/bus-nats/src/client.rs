@@ -9,22 +9,30 @@ pub struct NatsClient {
 }
 
 impl NatsClient {
-    /// Connect to NATS at `url` and ensure the stream exists.
+    /// Connect with default options. Equivalent to
+    /// `connect_with_options(url, ConnectOptions::default(), stream_cfg)`.
     pub async fn connect(url: &str, stream_cfg: &StreamConfig) -> Result<Self, BusError> {
-        let client = async_nats::connect(url)
+        Self::connect_with_options(url, async_nats::ConnectOptions::default(), stream_cfg).await
+    }
+
+    /// Connect with caller-supplied `async_nats::ConnectOptions`. Use for auth,
+    /// TLS, cluster URL lists, custom ping interval, etc.
+    pub async fn connect_with_options(
+        url: &str,
+        options: async_nats::ConnectOptions,
+        stream_cfg: &StreamConfig,
+    ) -> Result<Self, BusError> {
+        let client = options
+            .connect(url)
             .await
             .map_err(|e| BusError::Nats(e.to_string()))?;
-
         let js = jetstream::new(client);
-
         ensure_stream(&js, stream_cfg)
             .await
             .map_err(|e| BusError::Nats(e.to_string()))?;
-
         Ok(Self { js })
     }
 
-    /// Return a reference to the JetStream context.
     pub fn jetstream(&self) -> &jetstream::Context {
         &self.js
     }

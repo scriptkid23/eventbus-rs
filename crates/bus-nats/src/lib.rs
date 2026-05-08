@@ -20,8 +20,10 @@ pub use publisher::NatsPublisher;
 pub use stream::StreamConfig;
 pub use subscriber::{SubscribeOptions, SubscriptionHandle};
 
+pub use async_nats::ConnectOptions;
+
 #[cfg(feature = "nats-kv-inbox")]
-pub use inbox::nats_kv::NatsKvIdempotencyStore;
+pub use inbox::nats_kv::{NatsKvIdempotencyConfig, NatsKvIdempotencyStore};
 
 #[cfg(feature = "redis-inbox")]
-pub use inbox::redis::RedisIdempotencyStore;
+pub use inbox::redis::{RedisIdempotencyConfig, RedisIdempotencyStore};

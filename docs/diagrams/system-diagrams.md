@@ -26,12 +26,10 @@ flowchart LR
     macros["macros -> bus-macros"]
     natsKv["nats-kv-inbox -> bus-nats nats_kv"]
     redisInbox["redis-inbox -> bus-nats redis"]
-    sqliteBuffer["sqlite-buffer -> bus-nats sqlite_buffer"]
 
     eventBus --> macros
     eventBus --> natsKv
     eventBus --> redisInbox
-    eventBus --> sqliteBuffer
 ```
 
 ## 3. Publish and Consume Flow
@@ -42,9 +40,7 @@ flowchart TD
     builder[EventBusBuilder]
     bus[EventBus]
     publisher[NatsPublisher]
-    cb[CircuitBreaker]
     js[JetStream]
-    sqlite[SqliteBuffer]
     sub[Subscriber]
     idem[IdempotencyStore]
     handler[EventHandler]
@@ -52,10 +48,7 @@ flowchart TD
 
     app --> builder --> bus
     app -->|"publish(event)"| bus
-    bus --> publisher --> cb
-    cb -->|"healthy"| js
-    cb -->|"nats unavailable"| sqlite
-    sqlite -->|"relay when healthy"| js
+    bus --> publisher --> js
 
     js -->|"deliver message"| sub
     sub --> idem
