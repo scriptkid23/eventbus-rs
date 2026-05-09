@@ -65,21 +65,11 @@ The core (`bus-core`) is trait-only with **zero transport dependencies**, so you
 
 ## Installation
 
-### Prerequisites
-
-- **Rust toolchain** supporting **Edition 2024**. The workspace declares **MSRV `1.85.0`** — use that or newer.
-- **NATS Server 2.10+** with **JetStream** enabled (`-js`) when your app runs.
-- **Redis 7+** only if you enable the **`redis-inbox`** feature on `eventbus-nats` / `bus-nats`.
-
-### Add dependencies (`crates.io`)
-
-Published packages: **`bus-core`**, **`bus-nats`**, **`eventbus-macros`**, **`eventbus-nats`**. Pin an exact version until 1.0.
-
-**Typical app** — typed events with `#[derive(Event)]`, NATS KV idempotency, `EventBus` facade. Two crates is the minimum here because the proc-macro emits `bus_core::…` paths and `serde`-style requires `bus-core` to be a peer dependency:
+Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-eventbus-nats = { version = "0.1.2", features = ["macros", "nats-kv-inbox"] }
+eventbus-nats = "0.1.2"
 bus-core      = "0.1.1"
 
 serde       = { version = "1", features = ["derive"] }
@@ -88,81 +78,50 @@ uuid        = { version = "1", features = ["v7", "serde"] }
 async-trait = "0.1"
 ```
 
-You do **not** need to add `bus-nats` to your `Cargo.toml`. `eventbus-nats` re-exports the transport surface you commonly need:
+Then build:
 
-- Top-level: `NatsClient`, `StreamConfig`, `SubscribeOptions`, `ConnectOptions`, `NatsPublisher`, `NatsKvIdempotencyConfig`.
-- Namespace: anything else under `eventbus_nats::nats::…` (e.g. `nats::advisory::*`, `nats::dlq::*`).
-- `eventbus_nats::core::*` exposes `bus_core::*` if you want the trait crate without declaring it.
-
-**Without `derive(Event)`** — implement the `Event` trait by hand and you can drop `bus-core` from `Cargo.toml`:
-
-```toml
-eventbus-nats = { version = "0.1.2", default-features = false, features = ["nats-kv-inbox"] }
+```bash
+cargo build
 ```
 
-```rust
-use eventbus_nats::core::{Event, MessageId};
-use std::borrow::Cow;
+You also need a **NATS server with JetStream** running. The fastest way:
 
-#[derive(serde::Serialize, serde::Deserialize)]
-struct OrderCreated { id: MessageId, order_id: String }
-
-impl Event for OrderCreated {
-    fn subject(&self) -> Cow<'_, str> { Cow::Owned(format!("events.orders.{}.created", self.order_id)) }
-    fn message_id(&self) -> MessageId { self.id.clone() }
-}
+```bash
+docker run -p 4222:4222 nats:2.10 -js
 ```
 
-**Redis-backed idempotency** (still uses NATS JetStream for messaging):
+That's it — head to [Quick start](#quick-start).
+
+> `bus-core` is listed because `#[derive(Event)]` expands to `bus_core::…` paths (same peer-dep pattern as `serde_derive` / `serde`). If you implement `Event` by hand, you can drop it.
+
+### Optional setups
+
+**Use Redis for idempotency instead of NATS KV:**
 
 ```toml
 eventbus-nats = { version = "0.1.2", features = ["macros", "nats-kv-inbox", "redis-inbox"] }
 bus-core      = "0.1.1"
 ```
 
-**Bypass the facade** (no `eventbus-nats`, build your own wiring):
+**Skip the derive macro (manual `impl Event`):**
 
 ```toml
-bus-core = "0.1.1"
-bus-nats = { version = "0.1.1", features = ["nats-kv-inbox"] }
+eventbus-nats = { version = "0.1.2", default-features = false, features = ["nats-kv-inbox"] }
 ```
 
-### Crate name → Rust identifier
-
-Hyphens in a Cargo crate name become underscores in Rust imports:
-
-| In `Cargo.toml`     | In `use …`        |
-| ------------------- | ----------------- |
-| `eventbus-nats`     | `eventbus_nats`   |
-| `bus-nats`          | `bus_nats`        |
-| `eventbus-macros`   | `eventbus_macros` |
-| `bus-core`          | `bus_core`        |
-
-### Local NATS (quick)
-
-From a checkout of this repo:
-
-```bash
-docker compose up -d nats
-```
-
-Or any JetStream-capable NATS reachable at your URL (examples use `nats://localhost:4222`).
-
-### From Git instead of crates.io
-
-Pin a tag or revision so builds stay reproducible:
+**Pull from Git instead of crates.io** (tag pinning, `package = "…"` is required because this repo is a Cargo workspace):
 
 ```toml
 [dependencies]
-eventbus-nats = { git = "https://github.com/scriptkid23/eventbus-rs", tag = "v0.1.2", package = "eventbus-nats", features = ["macros", "nats-kv-inbox"] }
+eventbus-nats = { git = "https://github.com/scriptkid23/eventbus-rs", tag = "v0.1.2", package = "eventbus-nats" }
 bus-core      = { git = "https://github.com/scriptkid23/eventbus-rs", tag = "v0.1.2", package = "bus-core" }
-serde         = { version = "1", features = ["derive"] }
-tokio         = { version = "1", features = ["full"] }
-uuid          = { version = "1", features = ["v7", "serde"] }
-async-trait   = "0.1"
 ```
 
-The extra `package = "…"` keys are needed because this repository is a **Cargo workspace** (not a single-crate repo root).
+### Requirements
+
+- Rust **1.85+** (Edition 2024).
+- NATS Server **2.10+** with JetStream.
+- Redis **7+** *(only if you enable the `redis-inbox` feature)*.
 
 ---
 
@@ -174,7 +133,6 @@ The shortest path to publishing and consuming a typed event:
 use async_trait::async_trait;
 use eventbus_nats::{
     EventBusBuilder, NatsClient, NatsKvIdempotencyConfig, StreamConfig, SubscribeOptions,
-    nats::advisory::{AdvisoryLogOptions, spawn_jetstream_advisory_logger},
     prelude::*,
 };
 use serde::{Deserialize, Serialize};
@@ -205,12 +163,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let url = "nats://localhost:4222";
     let stream_cfg = StreamConfig { num_replicas: 1, ..Default::default() };
 
-    // Idempotency store backed by NATS KV (default)
+    // 1. Idempotency store (NATS KV — the default backend).
     let client = NatsClient::connect(url, &stream_cfg).await?;
-    let _advisory_logger = spawn_jetstream_advisory_logger(
-        client.jetstream(),
-        AdvisoryLogOptions::default(),
-    ).await?;
     let store  = NatsKvIdempotencyStore::new(
         client.jetstream().clone(),
         NatsKvIdempotencyConfig {
@@ -220,6 +174,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     ).await?;
 
+    // 2. Build the bus.
     let bus = EventBusBuilder::new()
         .url(url)
         .stream_config(stream_cfg)
@@ -227,7 +182,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()
         .await?;
 
-    // Subscribe
+    // 3. Subscribe.
     let _sub = bus.subscribe(
         SubscribeOptions {
             durable:     "orders-worker".into(),
@@ -238,7 +193,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         OrderHandler,
     ).await?;
 
-    // Publish
+    // 4. Publish.
     bus.publish(&OrderCreated {
         id:       MessageId::new(),
         order_id: "ord-001".into(),
@@ -251,21 +206,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-For more, see `[examples/01-basic-publish](examples/01-basic-publish/)` and `[examples/03-idempotent-handler](examples/03-idempotent-handler/)`.
+The flow is always **build idempotency store → build bus → subscribe → publish**. Everything past `prelude::*` lives behind a single `eventbus_nats` import; reach into `eventbus_nats::nats::*` only for advisory logging, raw DLQ helpers, or other less-common transport types.
+
+For runnable variants see [`examples/01-basic-publish`](examples/01-basic-publish/) and [`examples/03-idempotent-handler`](examples/03-idempotent-handler/).
 
 ---
 
 ## Production usage
 
-The defaults are tuned for a single-node dev box. The sections below walk through the changes you need for a production deployment.
+Defaults target a single-node dev box. The sections below cover the deltas you typically apply for a production deployment.
 
 ### 1. Connect with cluster URLs and credentials
 
-`async_nats::ConnectOptions` is the source of truth for auth, TLS, and tuning;
-`bus-nats` re-exports it as `ConnectOptions` so you don't add `async-nats` to your own `Cargo.toml`.
+`ConnectOptions` is the source of truth for auth, TLS, and tuning. `eventbus-nats` re-exports it so you don't pull `async-nats` directly:
 
 ```rust
-use bus_nats::{ConnectOptions, NatsClient, StreamConfig};
+use eventbus_nats::{ConnectOptions, NatsClient, StreamConfig};
 use std::time::Duration;
 
 // 1) Credentials file (NATS user JWT)
@@ -288,84 +244,87 @@ let client = NatsClient::connect_with_options(url, opts, &stream_cfg).await?;
 let opts = ConnectOptions::with_nkey(seed.into());
 ```
 
-A comma-separated URL string is parsed as multiple servers — no extra parsing needed.
+A comma-separated URL is parsed as multiple servers — no extra parsing needed.
 
-A typical least-privilege NATS user only needs:
+**Least-privilege NATS user** typically needs:
 
-- `pub` on `events.>` and `$JS.API.STREAM.MSG.GET.EVENTS`, `$JS.ACK.>`
+- `pub` on `events.>`, `$JS.API.STREAM.MSG.GET.EVENTS`, `$JS.ACK.>`
 - `sub` on the consumer's deliver subject
 - KV access on `$KV.eventbus_processed.>`
-- `pub` on `dlq.>` and `$JS.API.STREAM.CREATE.*` (auto-create DLQ on subscribe; stream names like `DLQ_EVENTS_worker` are one token, so `*` is sufficient unless you need broader API rights)
+- `pub` on `dlq.>` and `$JS.API.STREAM.CREATE.*` for DLQ auto-create
 
 ### 2. Configure JetStream for durability
 
-The default `StreamConfig` already ships **R3 replication, file storage, 5-minute dedup window, 7-day retention**. Tune via the builder:
+The default `StreamConfig` ships **R3 replication, file storage, 5-minute dedup window, 7-day retention**. Tune in code:
 
 ```rust
-use bus_nats::StreamConfig;
+use eventbus_nats::StreamConfig;
 use std::time::Duration;
 
 let stream_cfg = StreamConfig {
     name:             "EVENTS".into(),
     subjects:         vec!["events.>".into()],
-    num_replicas:     3,                              // R3 = quorum on 3-node cluster
+    num_replicas:     3,                              // R3 = quorum on a 3-node cluster
     duplicate_window: Duration::from_secs(5 * 60),    // dedup window for Nats-Msg-Id
     max_age:          Duration::from_secs(30 * 86400),// 30-day retention
 };
 ```
 
-**Sizing guidance:**
+**Sizing guidance**
 
-
-| Setting            | Dev / single-node | Production                               |
-| ------------------ | ----------------- | ---------------------------------------- |
-| `num_replicas`     | `1`               | `3` (odd, ≥ 3 for quorum)                |
-| `duplicate_window` | `2 min`           | `5–15 min` (≥ p99 publish retry budget)  |
-| `max_age`          | `1 day`           | `7–30 days` (compliance + replay budget) |
+| Setting                                | Dev / single-node | Production                               |
+| -------------------------------------- | ----------------- | ---------------------------------------- |
+| `num_replicas`                         | `1`               | `3` (odd, ≥ 3 for quorum)                |
+| `duplicate_window`                     | `2 min`           | `5–15 min` (≥ p99 publish retry budget)  |
+| `max_age`                              | `1 day`           | `7–30 days` (compliance + replay budget) |
 | `NatsKvIdempotencyConfig.num_replicas` | `1`               | `3` (match stream replicas)              |
-| Storage            | File              | File on local SSD/NVMe                   |
-
+| Storage                                | File              | File on local SSD/NVMe                   |
 
 ### 3. Pick an idempotency backend
 
-The bus requires **exactly one** `IdempotencyStore`. Pick by deployment topology:
+`EventBusBuilder` requires **exactly one** `IdempotencyStore`:
 
-
-| Backend                 | Crate / feature              | When to use                                                         |
-| ----------------------- | ---------------------------- | ------------------------------------------------------------------- |
-| **NATS KV** *(default)* | `bus-nats` / `nats-kv-inbox` | Default. No extra infra; rides on the NATS cluster you already run. |
-| **Redis**               | `bus-nats` / `redis-inbox`   | You already run Redis and want lower-latency `SET NX EX` semantics. |
-
+| Backend                 | Feature on `eventbus-nats` | When to use                                                         |
+| ----------------------- | -------------------------- | ------------------------------------------------------------------- |
+| **NATS KV** *(default)* | `nats-kv-inbox`            | No extra infra; rides on the NATS cluster you already run.          |
+| **Redis**               | `redis-inbox`              | You already run Redis and want lower-latency single-key claims.     |
 
 ```rust
+use eventbus_nats::NatsKvIdempotencyConfig;
+use eventbus_nats::prelude::*; // brings NatsKvIdempotencyStore in scope
+use std::time::Duration;
+
 // NATS KV (default)
-let store = bus_nats::NatsKvIdempotencyStore::new(
-    js.clone(),
-    bus_nats::NatsKvIdempotencyConfig {
+let store = NatsKvIdempotencyStore::new(
+    client.jetstream().clone(),
+    NatsKvIdempotencyConfig {
         num_replicas: 3,
-        max_age: Duration::from_secs(7 * 24 * 3600),
+        max_age:      Duration::from_secs(7 * 24 * 3600),
         ..Default::default()
     },
 ).await?;
+```
 
-// Redis
-# #[cfg(feature = "redis-inbox")]
-let store = bus_nats::RedisIdempotencyStore::connect(bus_nats::RedisIdempotencyConfig {
-    url: redis_url.into(),
+```rust
+// Redis (requires features = ["redis-inbox"])
+use eventbus_nats::{RedisIdempotencyConfig, RedisIdempotencyStore};
+
+let store = RedisIdempotencyStore::connect(RedisIdempotencyConfig {
+    url: "redis://localhost:6379".into(),
     ..Default::default()
 }).await?;
 ```
 
-Both implement the same `IdempotencyStore` trait and use atomic compare-and-set semantics so concurrent JetStream redeliveries cannot run a handler twice.
+Both implement the same `IdempotencyStore` trait. Each backend uses atomic compare-and-set semantics, so concurrent JetStream redeliveries cannot run a handler twice for the same `MessageId`.
 
 ### 4. Transactional publishing
 
-`bus.publish()` writes directly to NATS. If you need an event publish to reflect a database mutation atomically (so a crash between commit and publish cannot drop the event), `eventbus-rs` does **not** ship that mechanism — implement the outbox pattern in your application: write an outbox row in the same transaction as the business write, then have a separate task read pending rows and call `Publisher::publish` from `bus-core`. The traits are designed to support this without forking.
+`bus.publish()` writes directly to NATS. If you need a publish to atomically reflect a database mutation, implement the **outbox pattern** in your application: write an outbox row in the same transaction as the business write, then have a separate task drain pending rows and call `Publisher::publish`. The `bus-core` traits support this without forking.
 
 ### 5. Subscribe with retry, DLQ, and concurrency
 
 ```rust
-use bus_nats::{DlqConfig, DlqOptions, subscriber::SubscribeOptions};
+use eventbus_nats::{EventBusBuilder, SubscribeOptions, prelude::*};
 use std::time::Duration;
 
 let dlq = DlqConfig {
@@ -386,37 +345,38 @@ let sub = bus.subscribe(
         stream:      "EVENTS".into(),
         durable:     "payments-worker".into(),
         filter:      "events.payments.>".into(),
-        max_deliver: 5,                                    // retries before DLQ
-        ack_wait:    Duration::from_secs(30),              // visibility timeout
-        backoff:     vec![                                 // per-attempt delay
+        max_deliver: 5,                            // retries before DLQ
+        ack_wait:    Duration::from_secs(30),      // visibility timeout
+        backoff:     vec![                         // per-attempt delay
             Duration::from_secs(1),
             Duration::from_secs(5),
             Duration::from_secs(30),
             Duration::from_secs(300),
         ],
-        concurrency: 16,                                   // in-flight handlers per worker
+        concurrency: 16,                           // in-flight handlers per worker
         ..Default::default()
     },
     PaymentHandler,
 ).await?;
 ```
 
-Each subscription gets its own DLQ stream named `DLQ_<source-stream>_<durable>` (e.g. `DLQ_EVENTS_payments-worker`). It is created automatically the first time you call `subscribe()` with `DlqOptions` set (idempotent if you pre-provision the stream). Original headers (`X-Original-Subject`, `X-Original-Seq`, `X-Failure-Reason`, `X-Retry-Count`, …) are preserved.
+Each subscription gets a DLQ stream named `DLQ_<source-stream>_<durable>` (e.g. `DLQ_EVENTS_payments-worker`). It is created automatically the first time `subscribe()` runs with DLQ enabled (idempotent if you pre-provision it). Original headers (`X-Original-Subject`, `X-Original-Seq`, `X-Failure-Reason`, `X-Retry-Count`, …) are preserved.
 
 ### 6. Handle errors: Transient vs Permanent
 
-The `HandlerError` discriminant controls whether JetStream retries the message:
+The `HandlerError` discriminant controls JetStream's retry behavior:
 
 ```rust
-use bus_core::error::HandlerError;
+use async_trait::async_trait;
+use eventbus_nats::prelude::*;
 
 #[async_trait]
 impl EventHandler<PaymentProcessed> for PaymentHandler {
     async fn handle(&self, _ctx: HandlerCtx, evt: PaymentProcessed) -> Result<(), HandlerError> {
         match charge_card(&evt).await {
-            Ok(_)                       => Ok(()),
-            Err(e) if e.is_temporary()  => Err(HandlerError::Transient(e.to_string())), // NAK + retry with backoff
-            Err(e)                      => Err(HandlerError::Permanent(e.to_string())), // Term → DLQ immediately
+            Ok(_)                      => Ok(()),
+            Err(e) if e.is_temporary() => Err(HandlerError::Transient(e.to_string())), // NAK + retry
+            Err(e)                     => Err(HandlerError::Permanent(e.to_string())), // Term → DLQ
         }
     }
 }
@@ -424,41 +384,50 @@ impl EventHandler<PaymentProcessed> for PaymentHandler {
 
 Rule of thumb:
 
-- **Network blips, lock contention, 5xx upstream → `Transient`.** JetStream NAKs with the configured backoff; idempotency claim is released so the next attempt re-enters the handler.
-- **Bad payload, business rule violation, 4xx upstream → `Permanent`.** Goes straight to DLQ; no retry.
+- **Network blips, lock contention, 5xx upstream** → `Transient`. JetStream NAKs with the configured backoff; the idempotency claim is released so the next attempt re-enters the handler.
+- **Bad payload, business rule violation, 4xx upstream** → `Permanent`. Goes straight to DLQ; no retry.
 
 ### 7. Graceful shutdown
 
 ```rust
 tokio::signal::ctrl_c().await?;
-drop(sub);              // stops the consumer loop, aborts in-flight worker tasks
-bus.shutdown().await?;  // drains the NATS connection
+drop(sub);              // stop the consumer loop, abort in-flight worker tasks
+bus.shutdown().await?;  // drain the NATS connection
 ```
 
 Dropping a `SubscriptionHandle` aborts both the outer message loop and every spawned per-message worker, so SIGTERM cleanup is bounded by `ack_wait`.
 
 ### 8. Observability
 
-`bus-nats` emits structured `tracing` events at `info` / `warn` / `error` for publish, consume, retry, idempotency-store outcomes, and DLQ handoff. Wire your preferred `tracing-subscriber` layer (JSON, OTLP, …) in your application bootstrap to forward those to whatever observability stack you run. `eventbus-rs` itself does not bundle a metrics exporter or define its own metrics.
+`bus-nats` emits structured `tracing` events at `info` / `warn` / `error` for publish, consume, retry, idempotency-store outcomes, and DLQ handoff. Wire any `tracing-subscriber` layer (JSON, OTLP, …) in your application bootstrap to forward them. JetStream advisories are also available via the (optional) advisory logger:
+
+```rust
+use eventbus_nats::nats::advisory::{AdvisoryLogOptions, spawn_jetstream_advisory_logger};
+
+let _advisory = spawn_jetstream_advisory_logger(
+    client.jetstream(),
+    AdvisoryLogOptions::default(),
+).await?;
+```
+
+`eventbus-rs` itself does not bundle a metrics exporter or define its own metrics.
 
 ---
 
 ## Cargo features
 
+| Crate           | Feature         | Default | Description                                                         |
+| --------------- | --------------- | ------- | ------------------------------------------------------------------- |
+| `eventbus-nats` | `macros`        | yes     | Re-export `#[derive(Event)]` from `eventbus-macros`                 |
+| `eventbus-nats` | `nats-kv-inbox` | yes     | NATS KV-backed `IdempotencyStore`                                   |
+| `eventbus-nats` | `redis-inbox`   | no      | Redis-backed `IdempotencyStore` (also enables `bus-nats/redis-inbox`) |
+| `bus-nats`      | `nats-kv-inbox` | yes     | NATS KV implementation (transitively enabled by the facade)         |
+| `bus-nats`      | `redis-inbox`   | no      | Redis implementation (transitively enabled by the facade)           |
 
-| Crate       | Feature         | Default | Description                                       |
-| ----------- | --------------- | ------- | ------------------------------------------------- |
-| `eventbus-nats` | `macros`        | yes     | Re-export `#[derive(Event)]` from `eventbus-macros` |
-| `eventbus-nats` | `nats-kv-inbox` | yes     | NATS KV-backed `IdempotencyStore`                 |
-| `eventbus-nats` | `redis-inbox`   | no      | Redis-backed `IdempotencyStore`                   |
-| `bus-nats`      | `nats-kv-inbox` | yes     | (transitively enabled by `eventbus-nats`)         |
-| `bus-nats`      | `redis-inbox`   | no      | (transitively enabled by `eventbus-nats`)         |
-
-
-Minimal install (no Postgres, no macros):
+Minimal install (no derive macro, NATS KV only):
 
 ```toml
-eventbus-nats = { version = "0.1.1", default-features = false, features = ["nats-kv-inbox"] }
+eventbus-nats = { version = "0.1.2", default-features = false, features = ["nats-kv-inbox"] }
 ```
 
 ---
@@ -510,19 +479,17 @@ For the current component diagrams, see `[docs/diagrams/](docs/diagrams/)`.
 | NATS KV idempotency store *(default)*   | `bus-nats` (`nats-kv-inbox`) | ✅ Shipped           |
 | Redis idempotency store                 | `bus-nats` (`redis-inbox`)   | ✅ Shipped           |
 | `EventBus` facade + builder             | `eventbus-nats`              | ✅ Shipped           |
-| `crates.io` packages                    | `bus-core`, `bus-nats`, `eventbus-macros`, `eventbus-nats` (`v0.1.1`) | ✅ Published         |
+| `crates.io` packages                    | `bus-core`, `bus-nats`, `eventbus-macros` `0.1.1` · `eventbus-nats` `0.1.2` | ✅ Published         |
 
 
 ---
 
 ## Examples
 
-
-| Example                                                             | What it shows                                                                           |
-| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `[examples/01-basic-publish](examples/01-basic-publish/)`           | Publish + JetStream `Nats-Msg-Id` deduplication                                         |
-| `[examples/03-idempotent-handler](examples/03-idempotent-handler/)` | Subscribe with idempotent handler, prove exactly-once execution under duplicate publish |
-
+| Example                                                          | What it shows                                                                           |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| [`examples/01-basic-publish`](examples/01-basic-publish/)        | Publish + JetStream `Nats-Msg-Id` deduplication                                         |
+| [`examples/03-idempotent-handler`](examples/03-idempotent-handler/) | Subscribe with idempotent handler, prove exactly-once execution under duplicate publish |
 
 Run any example against the local docker-compose stack:
 
@@ -546,7 +513,7 @@ JetStream gives ordered streams, server-side dedup windows, durable consumers, a
 Yes — `eventbus-rs` does not depend on Postgres at all. NATS-KV (default) or Redis idempotency cover all supported deployments.
 
 **Q: Is the API stable?**
-No — pre-1.0. Breaking changes are tracked in `CHANGELOG.md` and called out in release notes. Pin a **semver version** (`0.1.1`) or a **Git tag** in `Cargo.toml`.
+No — pre-1.0. Breaking changes are tracked in `CHANGELOG.md` and called out in release notes. Pin a **semver version** or a **Git tag** in `Cargo.toml`.
 
 ---
 
