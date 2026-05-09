@@ -17,9 +17,9 @@ redis-inbox   = ["bus-nats/redis-inbox"]
 
 [dependencies]
 async-trait   = { workspace = true }
-bus-core      = { path = "../bus-core" }
-bus-macros    = { path = "../bus-macros", optional = true }
-bus-nats      = { path = "../bus-nats" }
+bus-core      = { workspace = true }
+bus-macros    = { workspace = true, optional = true }
+bus-nats      = { workspace = true }
 serde         = { workspace = true }
 serde_json    = { workspace = true }
 tokio         = { workspace = true }
@@ -28,7 +28,7 @@ uuid          = { workspace = true }
 
 [dev-dependencies]
 async-trait    = { workspace = true }
-bus-macros     = { path = "../bus-macros" }
+bus-macros     = { workspace = true }
 serde          = { workspace = true, features = ["derive"] }
 testcontainers = { workspace = true }
 tokio          = { workspace = true }

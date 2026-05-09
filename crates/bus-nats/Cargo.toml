@@ -17,7 +17,7 @@ redis-inbox   = ["dep:redis"]
 [dependencies]
 async-nats  = { workspace = true }
 async-trait = { workspace = true }
-bus-core    = { path = "../bus-core" }
+bus-core    = { workspace = true }
 bytes       = { workspace = true }
 futures-util = { workspace = true }
 redis       = { workspace = true, optional = true }
@@ -27,7 +27,7 @@ tracing     = { workspace = true }
 uuid        = { workspace = true }
 
 [dev-dependencies]
-bus-macros       = { path = "../bus-macros" }
+bus-macros       = { workspace = true }
 serde            = { workspace = true, features = ["derive"] }
 testcontainers   = { workspace = true }
 tokio            = { workspace = true }
