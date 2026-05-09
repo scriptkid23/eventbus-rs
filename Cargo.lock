@@ -544,7 +544,7 @@ dependencies = [
 
 [[package]]
 name = "eventbus-nats"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "async-trait",
  "bus-core",
@@ -563,7 +563,6 @@ name = "example-01-basic-publish"
 version = "0.1.0"
 dependencies = [
  "bus-core",
- "bus-nats",
  "eventbus-nats",
  "serde",
  "tokio",
@@ -576,7 +575,6 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bus-core",
- "bus-nats",
  "eventbus-nats",
  "serde",
  "tokio",

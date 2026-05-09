@@ -5,12 +5,11 @@
 //!   cargo run -p example-03-idempotent-handler -- nats://localhost:4222
 
 use async_trait::async_trait;
-use bus_nats::{
-    NatsClient, NatsKvIdempotencyConfig, NatsKvIdempotencyStore, StreamConfig,
-    advisory::{AdvisoryLogOptions, spawn_jetstream_advisory_logger},
-    subscriber::SubscribeOptions,
+use eventbus_nats::{
+    EventBusBuilder, NatsClient, NatsKvIdempotencyConfig, StreamConfig, SubscribeOptions,
+    nats::advisory::{AdvisoryLogOptions, spawn_jetstream_advisory_logger},
+    prelude::*,
 };
-use eventbus_nats::{EventBusBuilder, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::{
     sync::{
@@ -90,7 +89,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .await?;
 
-    // Publish same event twice — handler must run exactly once
     let evt = PaymentProcessed {
         id: MessageId::new(),
         payment_id: "pay-001".into(),

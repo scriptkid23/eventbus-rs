@@ -73,14 +73,14 @@ The core (`bus-core`) is trait-only with **zero transport dependencies**, so you
 
 ### Add dependencies (`crates.io`)
 
-All crates are published as **`bus-core`**, **`bus-nats`**, **`eventbus-macros`**, and **`eventbus-nats`**. Prefer **pinning an exact version** (or a conservative semver range) until 1.0.
+Published packages: **`bus-core`**, **`bus-nats`**, **`eventbus-macros`**, **`eventbus-nats`**. Pin an exact version until 1.0.
 
-**Typical app** — typed events, NATS KV idempotency, `EventBus` facade (recommended):
+**Typical app** — typed events with `#[derive(Event)]`, NATS KV idempotency, `EventBus` facade. Two crates is the minimum here because the proc-macro emits `bus_core::…` paths and `serde`-style requires `bus-core` to be a peer dependency:
 
 ```toml
 [dependencies]
-eventbus-nats = { version = "0.1.1", features = ["macros", "nats-kv-inbox"] }
-bus-nats      = "0.1.1"
+eventbus-nats = { version = "0.1.2", features = ["macros", "nats-kv-inbox"] }
+bus-core      = "0.1.1"
 
 serde       = { version = "1", features = ["derive"] }
 tokio       = { version = "1", features = ["full"] }
@@ -88,29 +88,39 @@ uuid        = { version = "1", features = ["v7", "serde"] }
 async-trait = "0.1"
 ```
 
-`eventbus-nats` **defaults** already include `macros` + `nats-kv-inbox`; the explicit `features` above documents intent. Equivalent minimal form:
+You do **not** need to add `bus-nats` to your `Cargo.toml`. `eventbus-nats` re-exports the transport surface you commonly need:
+
+- Top-level: `NatsClient`, `StreamConfig`, `SubscribeOptions`, `ConnectOptions`, `NatsPublisher`, `NatsKvIdempotencyConfig`.
+- Namespace: anything else under `eventbus_nats::nats::…` (e.g. `nats::advisory::*`, `nats::dlq::*`).
+- `eventbus_nats::core::*` exposes `bus_core::*` if you want the trait crate without declaring it.
+
+**Without `derive(Event)`** — implement the `Event` trait by hand and you can drop `bus-core` from `Cargo.toml`:
 
 ```toml
-eventbus-nats = "0.1.1"
-bus-nats      = "0.1.1"
+eventbus-nats = { version = "0.1.2", default-features = false, features = ["nats-kv-inbox"] }
+```
+
+```rust
+use eventbus_nats::core::{Event, MessageId};
+use std::borrow::Cow;
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct OrderCreated { id: MessageId, order_id: String }
+
+impl Event for OrderCreated {
+    fn subject(&self) -> Cow<'_, str> { Cow::Owned(format!("events.orders.{}.created", self.order_id)) }
+    fn message_id(&self) -> MessageId { self.id.clone() }
+}
 ```
 
 **Redis-backed idempotency** (still uses NATS JetStream for messaging):
 
 ```toml
-eventbus-nats = { version = "0.1.1", features = ["macros", "nats-kv-inbox", "redis-inbox"] }
-bus-nats      = "0.1.1"
-# …same serde/tokio/uuid/async-trait as above…
+eventbus-nats = { version = "0.1.2", features = ["macros", "nats-kv-inbox", "redis-inbox"] }
+bus-core      = "0.1.1"
 ```
 
-**Without `derive(Event)`** (manual `Event` impl on your types):
-
-```toml
-eventbus-nats = { version = "0.1.1", default-features = false, features = ["nats-kv-inbox"] }
-bus-nats      = "0.1.1"
-```
-
-**Bypass the facade** (only traits + NATS backend):
+**Bypass the facade** (no `eventbus-nats`, build your own wiring):
 
 ```toml
 bus-core = "0.1.1"
@@ -144,8 +154,8 @@ Pin a tag or revision so builds stay reproducible:
 
 ```toml
 [dependencies]
-eventbus-nats = { git = "https://github.com/scriptkid23/eventbus-rs", tag = "v0.1.1", package = "eventbus-nats", features = ["macros", "nats-kv-inbox"] }
-bus-nats      = { git = "https://github.com/scriptkid23/eventbus-rs", tag = "v0.1.1", package = "bus-nats" }
+eventbus-nats = { git = "https://github.com/scriptkid23/eventbus-rs", tag = "v0.1.2", package = "eventbus-nats", features = ["macros", "nats-kv-inbox"] }
+bus-core      = { git = "https://github.com/scriptkid23/eventbus-rs", tag = "v0.1.2", package = "bus-core" }
 serde         = { version = "1", features = ["derive"] }
 tokio         = { version = "1", features = ["full"] }
 uuid          = { version = "1", features = ["v7", "serde"] }
@@ -162,9 +172,11 @@ The shortest path to publishing and consuming a typed event:
 
 ```rust
 use async_trait::async_trait;
-use eventbus_nats::{prelude::*, EventBusBuilder};
-use bus_nats::{NatsClient, NatsKvIdempotencyConfig, NatsKvIdempotencyStore, StreamConfig, subscriber::SubscribeOptions};
-use bus_nats::advisory::{AdvisoryLogOptions, spawn_jetstream_advisory_logger};
+use eventbus_nats::{
+    EventBusBuilder, NatsClient, NatsKvIdempotencyConfig, StreamConfig, SubscribeOptions,
+    nats::advisory::{AdvisoryLogOptions, spawn_jetstream_advisory_logger},
+    prelude::*,
+};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 

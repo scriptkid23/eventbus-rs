@@ -4,7 +4,32 @@ All notable changes to this workspace are documented here.
 
 ## [Unreleased]
 
+## [eventbus-nats 0.1.2] — 2026-05-09
+
+### Added
+
+- `eventbus_nats::nats` namespace re-exporting the entire `bus-nats` crate, so applications no longer
+  need to declare `bus-nats` in `Cargo.toml` to reach types like `nats::advisory::*`, `nats::dlq::*`,
+  `nats::inbox::*`.
+- `eventbus_nats::core` namespace re-exporting `bus-core`, useful for consumers that don't use the
+  derive macro and want direct access to traits.
+- Top-level shortcuts in `eventbus_nats::*` for the most common transport types: `NatsClient`,
+  `StreamConfig`, `SubscribeOptions`, `ConnectOptions`, `NatsPublisher`, `NatsKvIdempotencyConfig`
+  (gated by the `nats-kv-inbox` feature), and `RedisIdempotencyConfig`/`RedisIdempotencyStore`
+  (gated by `redis-inbox`).
+
 ### Changed
+
+- Examples (`examples/01-basic-publish`, `examples/03-idempotent-handler`) now depend only on
+  `eventbus-nats` + `bus-core` and import everything through the facade re-exports.
+
+> Note: applications that use `#[derive(Event)]` still need `bus-core` as a peer dependency
+> because the proc-macro emits absolute `bus_core::…` paths (the same pattern `serde_derive` uses
+> with `serde`). To eliminate `bus-core` from `Cargo.toml` you must implement `Event` manually.
+
+## [Workspace 0.1.1] — 2026-05-08
+
+### Renamed
 
 - Crate **`bus-macros`** was renamed to **`eventbus-macros`** on crates.io (Rust: `eventbus_macros`).
   Workspace path remains `crates/bus-macros/`.

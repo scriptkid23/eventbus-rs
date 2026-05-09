@@ -7,6 +7,6 @@ pub use bus_core::{
 pub use eventbus_macros::Event;
 
 #[cfg(feature = "nats-kv-inbox")]
-pub use bus_nats::NatsKvIdempotencyStore;
+pub use bus_nats::{NatsKvIdempotencyConfig, NatsKvIdempotencyStore};
 
 pub use bus_nats::{DlqConfig, DlqOptions};

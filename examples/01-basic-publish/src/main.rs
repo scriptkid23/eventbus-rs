@@ -4,11 +4,11 @@
 //!   docker compose up -d nats   # or: docker run -p 4222:4222 nats:latest -js
 //!   cargo run -p example-01-basic-publish -- nats://localhost:4222
 
-use bus_nats::{
-    NatsClient, NatsKvIdempotencyConfig, NatsKvIdempotencyStore, StreamConfig,
-    advisory::{AdvisoryLogOptions, spawn_jetstream_advisory_logger},
+use eventbus_nats::{
+    EventBusBuilder, NatsClient, NatsKvIdempotencyConfig, StreamConfig,
+    nats::advisory::{AdvisoryLogOptions, spawn_jetstream_advisory_logger},
+    prelude::*,
 };
-use eventbus_nats::{EventBusBuilder, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -28,7 +28,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nth(1)
         .unwrap_or_else(|| "nats://localhost:4222".into());
 
-    // Build idempotency store
     let stream_cfg = StreamConfig {
         num_replicas: 1,
         ..Default::default()
@@ -46,7 +45,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .await?;
 
-    // Build bus
     let bus = EventBusBuilder::new()
         .url(&url)
         .stream_config(stream_cfg)
@@ -60,11 +58,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         total: 4999,
     };
 
-    // First publish
     let r1 = bus.publish(&evt).await?;
     println!("First:  seq={} duplicate={}", r1.sequence, r1.duplicate);
 
-    // Second publish with same message_id — will be deduped by JetStream
     let r2 = bus.publish(&evt).await?;
     println!("Second: seq={} duplicate={}", r2.sequence, r2.duplicate);
 
