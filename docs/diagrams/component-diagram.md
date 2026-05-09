@@ -8,7 +8,7 @@ flowchart TB
         appCode["Application code"]
     end
 
-    subgraph eventBus [event-bus facade]
+    subgraph eventBus [eventbus-nats façade]
         builder["EventBusBuilder"]
         bus["EventBus"]
         prelude["prelude re-exports"]

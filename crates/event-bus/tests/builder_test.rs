@@ -4,7 +4,7 @@ use eventbus_macros::Event;
 use bus_nats::{
     DlqConfig, NatsKvIdempotencyConfig, NatsKvIdempotencyStore, StreamConfig, SubscribeOptions,
 };
-use event_bus::EventBusBuilder;
+use eventbus_nats::EventBusBuilder;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use testcontainers::{

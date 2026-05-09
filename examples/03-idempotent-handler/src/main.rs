@@ -10,7 +10,7 @@ use bus_nats::{
     advisory::{AdvisoryLogOptions, spawn_jetstream_advisory_logger},
     subscriber::SubscribeOptions,
 };
-use event_bus::{EventBusBuilder, prelude::*};
+use eventbus_nats::{EventBusBuilder, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::{
     sync::{

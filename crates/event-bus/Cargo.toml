@@ -1,5 +1,5 @@
 [package]
-name        = "event-bus"
+name        = "eventbus-nats"
 description = "Production-grade event bus for Rust — NATS JetStream with effectively-once semantics"
 keywords    = ["nats", "eventbus", "messaging", "outbox", "idempotency"]
 categories  = ["asynchronous", "network-programming"]

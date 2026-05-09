@@ -530,7 +530,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "event-bus"
+name = "eventbus-macros"
+version = "0.1.1"
+dependencies = [
+ "bus-core",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "syn",
+ "trybuild",
+ "uuid",
+]
+
+[[package]]
+name = "eventbus-nats"
 version = "0.1.1"
 dependencies = [
  "async-trait",
@@ -546,25 +559,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "eventbus-macros"
-version = "0.1.1"
-dependencies = [
- "bus-core",
- "proc-macro2",
- "quote",
- "serde",
- "syn",
- "trybuild",
- "uuid",
-]
-
-[[package]]
 name = "example-01-basic-publish"
 version = "0.1.0"
 dependencies = [
  "bus-core",
  "bus-nats",
- "event-bus",
+ "eventbus-nats",
  "serde",
  "tokio",
  "tracing-subscriber",
@@ -577,7 +577,7 @@ dependencies = [
  "async-trait",
  "bus-core",
  "bus-nats",
- "event-bus",
+ "eventbus-nats",
  "serde",
  "tokio",
  "tracing-subscriber",

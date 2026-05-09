@@ -6,9 +6,10 @@ All notable changes to this workspace are documented here.
 
 ### Changed
 
-- Crate **`bus-macros` was renamed to `eventbus-macros`** on crates.io (Rust import: `eventbus_macros`).
-  Workspace path remains `crates/bus-macros/`. Consumers who depended on crate `bus-macros` explicitly
-  should switch the dependency key and `use eventbus_macros::Event` (unchanged via `event_bus::prelude`).
+- Crate **`bus-macros`** was renamed to **`eventbus-macros`** on crates.io (Rust: `eventbus_macros`).
+  Workspace path remains `crates/bus-macros/`.
+- Crate façade **`event-bus`** could not stay that name on crates.io (occupied). Published name is **`eventbus-nats`**
+  (Rust import: **`eventbus_nats`**) — this crate still wires **`bus-nats`** today; use **`bus-core`** alone when you ship a non-NATS backend.
 
 ## [0.1.1] — 2026-05-08
 

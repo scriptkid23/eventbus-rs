@@ -5,12 +5,12 @@
 **A typed async event bus for Rust — NATS JetStream with idempotent inbox + DLQ.**
 
 [CI](https://github.com/1hoodlabs/eventbus-rs/actions)
-[Crates.io](https://crates.io/crates/event-bus)
-[Docs.rs](https://docs.rs/event-bus)
+[Crates.io](https://crates.io/crates/eventbus-nats)
+[Docs.rs](https://docs.rs/eventbus-nats)
 [MSRV](https://blog.rust-lang.org/)
 [License: MIT OR Apache-2.0](#license)
 
-[Docs](https://docs.rs/event-bus) · [Examples](examples/) · [Architecture](#architecture) · [Roadmap](#roadmap)
+[Docs](https://docs.rs/eventbus-nats) · [Examples](examples/) · [Architecture](#architecture) · [Roadmap](#roadmap)
 
 
 
@@ -65,30 +65,94 @@ The core (`bus-core`) is trait-only with **zero transport dependencies**, so you
 
 ## Installation
 
-> **Status:** crates are not yet published on crates.io. Use git or path dependencies until v0.1 is tagged. Track [#1](https://github.com/1hoodlabs/eventbus-rs/issues) for the publish ETA.
+### Prerequisites
+
+- **Rust toolchain** supporting **Edition 2024**. The workspace declares **MSRV `1.85.0`** — use that or newer.
+- **NATS Server 2.10+** with **JetStream** enabled (`-js`) when your app runs.
+- **Redis 7+** only if you enable the **`redis-inbox`** feature on `eventbus-nats` / `bus-nats`.
+
+### Add dependencies (`crates.io`)
+
+All crates are published as **`bus-core`**, **`bus-nats`**, **`eventbus-macros`**, and **`eventbus-nats`**. Prefer **pinning an exact version** (or a conservative semver range) until 1.0.
+
+**Typical app** — typed events, NATS KV idempotency, `EventBus` facade (recommended):
 
 ```toml
 [dependencies]
-event-bus = { git = "https://github.com/1hoodlabs/eventbus-rs", tag = "v0.1.1", features = [
-    "macros",
-    "nats-kv-inbox",
-] }
+eventbus-nats = { version = "0.1.1", features = ["macros", "nats-kv-inbox"] }
+bus-nats      = "0.1.1"
 
-# Required peer deps for application code
-serde      = { version = "1", features = ["derive"] }
-tokio      = { version = "1", features = ["full"] }
-uuid       = { version = "1", features = ["v7", "serde"] }
+serde       = { version = "1", features = ["derive"] }
+tokio       = { version = "1", features = ["full"] }
+uuid        = { version = "1", features = ["v7", "serde"] }
 async-trait = "0.1"
 ```
 
-**Minimum supported Rust version (MSRV):** `1.85.0` (the workspace uses **edition 2024**).
+`eventbus-nats` **defaults** already include `macros` + `nats-kv-inbox`; the explicit `features` above documents intent. Equivalent minimal form:
 
-**Runtime requirements:**
+```toml
+eventbus-nats = "0.1.1"
+bus-nats      = "0.1.1"
+```
 
-- NATS Server **2.10+** with JetStream enabled
-- Redis **7+** (only if you use the `redis-inbox` feature)
+**Redis-backed idempotency** (still uses NATS JetStream for messaging):
 
-A `docker-compose.yml` is included at the repo root to spin up all three locally.
+```toml
+eventbus-nats = { version = "0.1.1", features = ["macros", "nats-kv-inbox", "redis-inbox"] }
+bus-nats      = "0.1.1"
+# …same serde/tokio/uuid/async-trait as above…
+```
+
+**Without `derive(Event)`** (manual `Event` impl on your types):
+
+```toml
+eventbus-nats = { version = "0.1.1", default-features = false, features = ["nats-kv-inbox"] }
+bus-nats      = "0.1.1"
+```
+
+**Bypass the facade** (only traits + NATS backend):
+
+```toml
+bus-core = "0.1.1"
+bus-nats = { version = "0.1.1", features = ["nats-kv-inbox"] }
+```
+
+### Crate name → Rust identifier
+
+Hyphens in a Cargo crate name become underscores in Rust imports:
+
+| In `Cargo.toml`     | In `use …`        |
+| ------------------- | ----------------- |
+| `eventbus-nats`     | `eventbus_nats`   |
+| `bus-nats`          | `bus_nats`        |
+| `eventbus-macros`   | `eventbus_macros` |
+| `bus-core`          | `bus_core`        |
+
+### Local NATS (quick)
+
+From a checkout of this repo:
+
+```bash
+docker compose up -d nats
+```
+
+Or any JetStream-capable NATS reachable at your URL (examples use `nats://localhost:4222`).
+
+### From Git instead of crates.io
+
+Pin a tag or revision so builds stay reproducible:
+
+```toml
+[dependencies]
+eventbus-nats = { git = "https://github.com/scriptkid23/eventbus-rs", tag = "v0.1.1", package = "eventbus-nats", features = ["macros", "nats-kv-inbox"] }
+bus-nats      = { git = "https://github.com/scriptkid23/eventbus-rs", tag = "v0.1.1", package = "bus-nats" }
+serde         = { version = "1", features = ["derive"] }
+tokio         = { version = "1", features = ["full"] }
+uuid          = { version = "1", features = ["v7", "serde"] }
+async-trait   = "0.1"
+```
+
+The extra `package = "…"` keys are needed because this repository is a **Cargo workspace** (not a single-crate repo root).
 
 ---
 
@@ -98,7 +162,7 @@ The shortest path to publishing and consuming a typed event:
 
 ```rust
 use async_trait::async_trait;
-use event_bus::{prelude::*, EventBusBuilder};
+use eventbus_nats::{prelude::*, EventBusBuilder};
 use bus_nats::{NatsClient, NatsKvIdempotencyConfig, NatsKvIdempotencyStore, StreamConfig, subscriber::SubscribeOptions};
 use bus_nats::advisory::{AdvisoryLogOptions, spawn_jetstream_advisory_logger};
 use serde::{Deserialize, Serialize};
@@ -372,17 +436,17 @@ Dropping a `SubscriptionHandle` aborts both the outer message loop and every spa
 
 | Crate       | Feature         | Default | Description                                       |
 | ----------- | --------------- | ------- | ------------------------------------------------- |
-| `event-bus` | `macros`        | yes     | Re-export `#[derive(Event)]` from `eventbus-macros` |
-| `event-bus` | `nats-kv-inbox` | yes     | NATS KV-backed `IdempotencyStore`                 |
-| `event-bus` | `redis-inbox`   | no      | Redis-backed `IdempotencyStore`                   |
-| `bus-nats`  | `nats-kv-inbox` | yes     | (transitively enabled by `event-bus`)             |
-| `bus-nats`  | `redis-inbox`   | no      | (transitively enabled by `event-bus`)             |
+| `eventbus-nats` | `macros`        | yes     | Re-export `#[derive(Event)]` from `eventbus-macros` |
+| `eventbus-nats` | `nats-kv-inbox` | yes     | NATS KV-backed `IdempotencyStore`                 |
+| `eventbus-nats` | `redis-inbox`   | no      | Redis-backed `IdempotencyStore`                   |
+| `bus-nats`      | `nats-kv-inbox` | yes     | (transitively enabled by `eventbus-nats`)         |
+| `bus-nats`      | `redis-inbox`   | no      | (transitively enabled by `eventbus-nats`)         |
 
 
 Minimal install (no Postgres, no macros):
 
 ```toml
-event-bus = { git = "...", default-features = false, features = ["nats-kv-inbox"] }
+eventbus-nats = { version = "0.1.1", default-features = false, features = ["nats-kv-inbox"] }
 ```
 
 ---
@@ -393,7 +457,7 @@ event-bus = { git = "...", default-features = false, features = ["nats-kv-inbox"
 flowchart TD
     subgraph application["Application"]
         publish["bus.publish(event)"]
-        event_bus["EventBus"]
+        facade["EventBus"]
         bus_nats["bus-nats<br/>(Publisher + Subscriber + DLQ)"]
         jetstream["NATS JetStream<br/>stream: EVENTS (R3)<br/>dedup: 5 min"]
         pull_consumer["Pull consumer<br/>(semaphore-bounded)"]
@@ -403,8 +467,8 @@ flowchart TD
         duplicate["ACK<br/>(skip handler - duplicate)"]
         dlq["publish to DLQ stream<br/>Term"]
 
-        publish --> event_bus
-        event_bus --> bus_nats
+        publish --> facade
+        facade --> bus_nats
         bus_nats --> jetstream
         jetstream --> pull_consumer
         pull_consumer --> idempotency
@@ -433,8 +497,8 @@ For the current component diagrams, see `[docs/diagrams/](docs/diagrams/)`.
 | Pull consumer + retry + DLQ             | `bus-nats`                   | ✅ Shipped           |
 | NATS KV idempotency store *(default)*   | `bus-nats` (`nats-kv-inbox`) | ✅ Shipped           |
 | Redis idempotency store                 | `bus-nats` (`redis-inbox`)   | ✅ Shipped           |
-| `EventBus` facade + builder             | `event-bus`                  | ✅ Shipped           |
-| `crates.io` publish                     | all crates                   | 📋 Planned (v0.1.1) |
+| `EventBus` facade + builder             | `eventbus-nats`              | ✅ Shipped           |
+| `crates.io` packages                    | `bus-core`, `bus-nats`, `eventbus-macros`, `eventbus-nats` (`v0.1.1`) | ✅ Published         |
 
 
 ---
@@ -470,15 +534,15 @@ JetStream gives ordered streams, server-side dedup windows, durable consumers, a
 Yes — `eventbus-rs` does not depend on Postgres at all. NATS-KV (default) or Redis idempotency cover all supported deployments.
 
 **Q: Is the API stable?**
-No — pre-1.0. Breaking changes are tracked in `CHANGELOG.md` and called out in release notes. Pin to a tag.
+No — pre-1.0. Breaking changes are tracked in `CHANGELOG.md` and called out in release notes. Pin a **semver version** (`0.1.1`) or a **Git tag** in `Cargo.toml`.
 
 ---
 
 ## Roadmap
 
-**v0.1** *(current)* — Core traits, NATS publisher/subscriber, KV/Redis idempotency, DLQ.
+**v0.1** *(current)* — Core traits, NATS publisher/subscriber, KV/Redis idempotency, DLQ, **crates.io publish**.
 
-**v0.2** — `crates.io` publish.
+**v0.2** — Planned improvements (documentation, ergonomics — see issues/milestones).
 
 **v0.3** — (Optional) additional transport backends (Kafka, RabbitMQ, Redis Streams) if user demand emerges.
 
@@ -501,7 +565,8 @@ Contributions are welcome. Before opening a non-trivial PR:
 cargo fmt --all
 cargo clippy --workspace --all-features -- -D warnings
 cargo test --workspace
-cargo test -p bus-nats     # integration; requires Docker
+cargo test -p eventbus-macros   # derives + compile-fail snapshots
+cargo test -p bus-nats          # integration; requires Docker
 cargo test -p bus-nats --features redis-inbox
 ```
 

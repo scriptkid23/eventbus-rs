@@ -8,7 +8,7 @@ use bus_nats::{
     NatsClient, NatsKvIdempotencyConfig, NatsKvIdempotencyStore, StreamConfig,
     advisory::{AdvisoryLogOptions, spawn_jetstream_advisory_logger},
 };
-use event_bus::{EventBusBuilder, prelude::*};
+use eventbus_nats::{EventBusBuilder, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 

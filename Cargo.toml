@@ -21,7 +21,7 @@ repository = "https://github.com/scriptkid23/eventbus-rs"
 bus-core   = { path = "crates/bus-core", version = "0.1.1" }
 eventbus-macros = { path = "crates/bus-macros", version = "0.1.1" }
 bus-nats   = { path = "crates/bus-nats", version = "0.1.1" }
-event-bus  = { path = "crates/event-bus", version = "0.1.1" }
+eventbus-nats = { path = "crates/event-bus", version = "0.1.1" }
 
 async-nats   = "0.46"
 async-trait  = "0.1"

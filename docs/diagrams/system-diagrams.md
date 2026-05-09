@@ -8,7 +8,7 @@ flowchart TD
         busCore[bus-core]
         busMacros[eventbus-macros]
         busNats[bus-nats]
-        eventBus[event-bus]
+        eventBus[eventbus-nats]
     end
 
     busMacros --> busCore
@@ -18,11 +18,11 @@ flowchart TD
     eventBus -->|"optional feature: macros"| busMacros
 ```
 
-## 2. event-bus Feature Map
+## 2. eventbus-nats Feature Map
 
 ```mermaid
 flowchart LR
-    eventBus[event-bus]
+    eventBus[eventbus-nats]
     macros["macros -> eventbus-macros"]
     natsKv["nats-kv-inbox -> bus-nats nats_kv"]
     redisInbox["redis-inbox -> bus-nats redis"]

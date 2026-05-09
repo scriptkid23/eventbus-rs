@@ -7,7 +7,7 @@ publish = false
 [dependencies]
 bus-core           = { workspace = true }
 bus-nats           = { workspace = true }
-event-bus          = { workspace = true, features = ["nats-kv-inbox"] }
+eventbus-nats = { workspace = true, features = ["nats-kv-inbox"] }
 serde              = { workspace = true, features = ["derive"] }
 tokio              = { workspace = true }
 tracing-subscriber = "0.3"
