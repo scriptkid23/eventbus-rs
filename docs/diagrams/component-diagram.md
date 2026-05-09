@@ -21,7 +21,7 @@ flowchart TB
         idempotencyTrait["IdempotencyStore"]
     end
 
-    subgraph busMacros [bus-macros]
+    subgraph busMacros [eventbus-macros]
         deriveEvent["derive(Event)"]
     end
 

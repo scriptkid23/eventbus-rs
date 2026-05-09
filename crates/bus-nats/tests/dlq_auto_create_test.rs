@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use bus_core::{EventHandler, HandlerCtx, HandlerError, MessageId, Publisher};
-use bus_macros::Event;
+use eventbus_macros::Event;
 use bus_nats::dlq::{DlqConfig, DlqOptions};
 use bus_nats::subscriber::subscribe;
 use bus_nats::{

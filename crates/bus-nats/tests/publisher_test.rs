@@ -1,5 +1,5 @@
 use bus_core::{MessageId, Publisher};
-use bus_macros::Event;
+use eventbus_macros::Event;
 use bus_nats::{NatsClient, NatsPublisher, StreamConfig};
 use serde::{Deserialize, Serialize};
 use testcontainers::{

@@ -27,7 +27,7 @@ tracing     = { workspace = true }
 uuid        = { workspace = true }
 
 [dev-dependencies]
-bus-macros       = { workspace = true }
+eventbus-macros  = { workspace = true }
 serde            = { workspace = true, features = ["derive"] }
 testcontainers   = { workspace = true }
 tokio            = { workspace = true }

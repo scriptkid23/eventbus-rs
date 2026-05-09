@@ -203,27 +203,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "bus-macros"
-version = "0.1.1"
-dependencies = [
- "bus-core",
- "proc-macro2",
- "quote",
- "serde",
- "syn",
- "trybuild",
- "uuid",
-]
-
-[[package]]
 name = "bus-nats"
 version = "0.1.1"
 dependencies = [
  "async-nats",
  "async-trait",
  "bus-core",
- "bus-macros",
  "bytes",
+ "eventbus-macros",
  "futures-util",
  "redis",
  "serde",
@@ -548,13 +535,26 @@ version = "0.1.1"
 dependencies = [
  "async-trait",
  "bus-core",
- "bus-macros",
  "bus-nats",
+ "eventbus-macros",
  "serde",
  "serde_json",
  "testcontainers",
  "tokio",
  "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "eventbus-macros"
+version = "0.1.1"
+dependencies = [
+ "bus-core",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "syn",
+ "trybuild",
  "uuid",
 ]
 

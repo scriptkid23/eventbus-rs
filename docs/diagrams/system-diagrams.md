@@ -6,7 +6,7 @@
 flowchart TD
     subgraph workspace [Cargo workspace]
         busCore[bus-core]
-        busMacros[bus-macros]
+        busMacros[eventbus-macros]
         busNats[bus-nats]
         eventBus[event-bus]
     end
@@ -23,7 +23,7 @@ flowchart TD
 ```mermaid
 flowchart LR
     eventBus[event-bus]
-    macros["macros -> bus-macros"]
+    macros["macros -> eventbus-macros"]
     natsKv["nats-kv-inbox -> bus-nats nats_kv"]
     redisInbox["redis-inbox -> bus-nats redis"]
 

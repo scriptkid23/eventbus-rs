@@ -2,7 +2,7 @@ use async_nats::jetstream;
 use async_trait::async_trait;
 use bus_core::idempotency::IdempotencyStore;
 use bus_core::{EventHandler, HandlerCtx, HandlerError, MessageId, Publisher};
-use bus_macros::Event;
+use eventbus_macros::Event;
 use bus_nats::dlq::{
     DEFAULT_DLQ_DUPLICATE_WINDOW, DEFAULT_DLQ_MAX_AGE, DEFAULT_DLQ_REPLICAS, DlqConfig, DlqOptions,
     FailureInfo, build_dlq_headers, dlq_stream_name, dlq_subject, ensure_dlq_stream,

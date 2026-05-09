@@ -1,5 +1,5 @@
 [package]
-name = "bus-macros"
+name = "eventbus-macros"
 description = "Derive macros for eventbus-rs"
 keywords = ["nats", "eventbus", "macros", "derive"]
 categories = ["asynchronous", "network-programming"]

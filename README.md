@@ -372,7 +372,7 @@ Dropping a `SubscriptionHandle` aborts both the outer message loop and every spa
 
 | Crate       | Feature         | Default | Description                                       |
 | ----------- | --------------- | ------- | ------------------------------------------------- |
-| `event-bus` | `macros`        | yes     | Re-export `#[derive(Event)]` from `bus-macros`    |
+| `event-bus` | `macros`        | yes     | Re-export `#[derive(Event)]` from `eventbus-macros` |
 | `event-bus` | `nats-kv-inbox` | yes     | NATS KV-backed `IdempotencyStore`                 |
 | `event-bus` | `redis-inbox`   | no      | Redis-backed `IdempotencyStore`                   |
 | `bus-nats`  | `nats-kv-inbox` | yes     | (transitively enabled by `event-bus`)             |
@@ -428,7 +428,7 @@ For the current component diagrams, see `[docs/diagrams/](docs/diagrams/)`.
 | Component                               | Crate                        | Status              |
 | --------------------------------------- | ---------------------------- | ------------------- |
 | Traits, `MessageId`, `BusError`         | `bus-core`                   | ✅ Shipped           |
-| `#[derive(Event)]` + compile-fail tests | `bus-macros`                 | ✅ Shipped           |
+| `#[derive(Event)]` + compile-fail tests | `eventbus-macros`            | ✅ Shipped           |
 | NATS JetStream `Publisher`              | `bus-nats`                   | ✅ Shipped           |
 | Pull consumer + retry + DLQ             | `bus-nats`                   | ✅ Shipped           |
 | NATS KV idempotency store *(default)*   | `bus-nats` (`nats-kv-inbox`) | ✅ Shipped           |

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use bus_core::{EventHandler, HandlerCtx, HandlerError, MessageId};
-use bus_macros::Event;
+use eventbus_macros::Event;
 use bus_nats::{
     DlqConfig, NatsKvIdempotencyConfig, NatsKvIdempotencyStore, StreamConfig, SubscribeOptions,
 };

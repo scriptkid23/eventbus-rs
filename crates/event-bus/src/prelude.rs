@@ -4,7 +4,7 @@ pub use bus_core::{
 };
 
 #[cfg(feature = "macros")]
-pub use bus_macros::Event;
+pub use eventbus_macros::Event;
 
 #[cfg(feature = "nats-kv-inbox")]
 pub use bus_nats::NatsKvIdempotencyStore;

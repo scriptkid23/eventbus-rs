@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 /// Marker trait for all events published through the event bus.
 ///
-/// Implement manually or use `#[derive(Event)]` from the `bus-macros` crate.
+/// Implement manually or use `#[derive(Event)]` from the `eventbus-macros` crate.
 /// Every implementor must have a stable, unique `message_id()` for idempotency
 /// and deduplication.
 pub trait Event: Serialize + DeserializeOwned + Send + Sync + 'static {

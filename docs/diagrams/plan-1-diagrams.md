@@ -1,4 +1,4 @@
-# Plan 1: bus-core + bus-macros — Diagrams
+# Plan 1: bus-core + eventbus-macros — Diagrams
 
 ## 1. Workspace Crate Dependency Graph
 
@@ -6,7 +6,7 @@
 graph TD
     subgraph Workspace["Cargo Workspace"]
         BC["bus-core<br/>(leaf — no workspace deps)"]
-        BM["bus-macros<br/>(proc-macro = true)"]
+        BM["eventbus-macros<br/>(proc-macro = true)"]
     end
 
     BM -->|dev-dep| BC
@@ -151,7 +151,7 @@ classDiagram
 
 ---
 
-## 4. bus-macros — #[derive(Event)] Code Generation Flow
+## 4. eventbus-macros — #[derive(Event)] Code Generation Flow
 
 ```mermaid
 flowchart TD
@@ -181,7 +181,7 @@ flowchart TD
 sequenceDiagram
     participant W as Workspace Cargo.toml
     participant BC as bus-core
-    participant BM as bus-macros
+    participant BM as eventbus-macros
     participant T as Tests
 
     Note over W: Task 1 — workspace manifest

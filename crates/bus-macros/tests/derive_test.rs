@@ -1,5 +1,5 @@
 use bus_core::{Event, MessageId};
-use bus_macros::Event;
+use eventbus_macros::Event;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

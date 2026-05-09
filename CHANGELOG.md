@@ -2,6 +2,14 @@
 
 All notable changes to this workspace are documented here.
 
+## [Unreleased]
+
+### Changed
+
+- Crate **`bus-macros` was renamed to `eventbus-macros`** on crates.io (Rust import: `eventbus_macros`).
+  Workspace path remains `crates/bus-macros/`. Consumers who depended on crate `bus-macros` explicitly
+  should switch the dependency key and `use eventbus_macros::Event` (unchanged via `event_bus::prelude`).
+
 ## [0.1.1] — 2026-05-08
 
 ### Added

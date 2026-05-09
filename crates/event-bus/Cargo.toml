@@ -11,14 +11,14 @@ repository.workspace = true
 
 [features]
 default       = ["macros", "nats-kv-inbox"]
-macros        = ["dep:bus-macros"]
+macros        = ["dep:eventbus-macros"]
 nats-kv-inbox = ["bus-nats/nats-kv-inbox"]
 redis-inbox   = ["bus-nats/redis-inbox"]
 
 [dependencies]
 async-trait   = { workspace = true }
 bus-core      = { workspace = true }
-bus-macros    = { workspace = true, optional = true }
+eventbus-macros = { workspace = true, optional = true }
 bus-nats      = { workspace = true }
 serde         = { workspace = true }
 serde_json    = { workspace = true }
@@ -28,7 +28,7 @@ uuid          = { workspace = true }
 
 [dev-dependencies]
 async-trait    = { workspace = true }
-bus-macros     = { workspace = true }
+eventbus-macros = { workspace = true }
 serde          = { workspace = true, features = ["derive"] }
 testcontainers = { workspace = true }
 tokio          = { workspace = true }
