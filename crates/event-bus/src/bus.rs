@@ -20,8 +20,17 @@ pub struct EventBus {
     dlq: Option<DlqConfig>,
 }
 
-/// Handle to a running subscription. Dropping stops the consumer loop.
-pub struct SubscriptionHandle(#[allow(dead_code)] bus_nats::SubscriptionHandle);
+/// Handle to a running subscription.
+/// Call [`SubscriptionHandle::drain`] for graceful shutdown; dropping the
+/// handle aborts in-flight handlers immediately.
+pub struct SubscriptionHandle(bus_nats::SubscriptionHandle);
+
+impl SubscriptionHandle {
+    /// Gracefully stop this subscription. See [`bus_nats::SubscriptionHandle::drain`].
+    pub async fn drain(self, timeout: std::time::Duration) -> bool {
+        self.0.drain(timeout).await
+    }
+}
 
 impl EventBus {
     pub(crate) fn new(
@@ -81,9 +90,10 @@ impl EventBus {
         Ok(SubscriptionHandle(handle))
     }
 
-    /// Graceful shutdown: wait for in-flight handlers, close NATS connection.
+    /// Close the bus. Drain your `SubscriptionHandle`s first — this method
+    /// only drops the underlying NATS client, which flushes on drop; it does
+    /// not wait for in-flight handlers.
     pub async fn shutdown(self) -> Result<(), BusError> {
-        // Drop client — async-nats will drain on drop
         Ok(())
     }
 }

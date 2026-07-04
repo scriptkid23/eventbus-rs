@@ -1,6 +1,5 @@
 # Local stack for eventbus-rs development and manual integration checks.
 # NATS: JetStream on 4222, monitoring on 8222
-# Postgres: matches testcontainers defaults in docs/plan (user postgres, db testdb)
 # Redis: optional backend for bus-nats feature `redis-inbox`
 
 services:
@@ -17,23 +16,6 @@ services:
       retries: 5
       start_period: 5s
 
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: testdb
-    ports:
-      - "5432:5432"
-    volumes:
-      - eventbus_postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d testdb"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
   redis:
     image: redis:7-alpine
     ports:
@@ -48,5 +30,4 @@ services:
       retries: 5
 
 volumes:
-  eventbus_postgres_data:
   eventbus_redis_data:

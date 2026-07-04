@@ -1,11 +1,11 @@
 use async_trait::async_trait;
 use bus_core::{EventHandler, HandlerCtx, HandlerError, MessageId, Publisher};
-use eventbus_macros::Event;
 use bus_nats::subscriber::subscribe;
 use bus_nats::{
     NatsClient, NatsKvIdempotencyConfig, NatsKvIdempotencyStore, NatsPublisher, StreamConfig,
     SubscribeOptions,
 };
+use eventbus_macros::Event;
 use serde::{Deserialize, Serialize};
 use std::{
     sync::{
@@ -128,5 +128,77 @@ async fn dropping_subscription_handle_aborts_in_flight_workers() {
         completed.load(Ordering::SeqCst),
         0,
         "handler must not complete after SubscriptionHandle is dropped"
+    );
+}
+
+struct DrainSlowHandler {
+    started: Arc<AtomicU32>,
+    finished: Arc<AtomicU32>,
+}
+
+#[async_trait]
+impl EventHandler<ShutdownEvent> for DrainSlowHandler {
+    async fn handle(&self, _ctx: HandlerCtx, _evt: ShutdownEvent) -> Result<(), HandlerError> {
+        self.started.fetch_add(1, Ordering::SeqCst);
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        self.finished.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn drain_waits_for_in_flight_handler() {
+    let (_container, url) = start_nats().await;
+    let client = connect_client(&url).await;
+    let publisher = NatsPublisher::new(client.clone());
+    let store = Arc::new(
+        NatsKvIdempotencyStore::new(
+            client.jetstream().clone(),
+            NatsKvIdempotencyConfig {
+                num_replicas: 1,
+                max_age: Duration::from_secs(60),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap(),
+    );
+
+    let started = Arc::new(AtomicU32::new(0));
+    let finished = Arc::new(AtomicU32::new(0));
+    let handler = Arc::new(DrainSlowHandler {
+        started: started.clone(),
+        finished: finished.clone(),
+    });
+
+    let opts = SubscribeOptions {
+        durable: "drain-worker".into(),
+        filter: "events.shutdown.>".into(),
+        ..Default::default()
+    };
+
+    let handle = subscribe::<ShutdownEvent, _, _>(client, opts, handler, store)
+        .await
+        .unwrap();
+
+    publisher
+        .publish(&ShutdownEvent {
+            id: MessageId::new(),
+        })
+        .await
+        .unwrap();
+
+    // Wait until the handler has started but not finished.
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(started.load(Ordering::SeqCst), 1);
+    assert_eq!(finished.load(Ordering::SeqCst), 0);
+
+    let drained = handle.drain(Duration::from_secs(5)).await;
+
+    assert!(drained, "drain must complete within the timeout");
+    assert_eq!(
+        finished.load(Ordering::SeqCst),
+        1,
+        "in-flight handler must finish before drain returns"
     );
 }

@@ -4,6 +4,34 @@ All notable changes to this workspace are documented here.
 
 ## [Unreleased]
 
+## 0.2.0 — 2026-07-04
+
+### Breaking changes
+- `IdempotencyStore::try_claim` no longer takes a `ttl` parameter; key expiry
+  is configured on the store (`NatsKvIdempotencyConfig.max_age`,
+  `RedisIdempotencyConfig.ttl`). `SubscribeOptions.idempotency_ttl` and
+  `DEFAULT_IDEMPOTENCY_TTL` are removed.
+- Removed dead API: `BusError::Outbox`, `BusError::NatsUnavailable`,
+  `PubReceipt.buffered`, `EventBusBuilder::with_otel`.
+
+### Fixed
+- **Effectively-once under concurrency:** a message whose idempotency claim is
+  `AlreadyPending` is now NAKed instead of running the handler concurrently.
+- Messages published without a `Nats-Msg-Id` header get a deterministic
+  fallback ID derived from stream/consumer/sequence, so redeliveries
+  deduplicate correctly.
+- Ack, NAK, TERM, and `mark_done` failures in the consume path are now logged
+  instead of silently ignored.
+
+### Added
+- Subscriber reconnects with exponential backoff (200ms..30s) when the message
+  stream ends or the consumer is deleted, instead of exiting permanently.
+- `SubscriptionHandle::drain(timeout)` for graceful shutdown: stops pulling,
+  waits for in-flight handlers, aborts only on timeout.
+- `EventBusBuilder::connect_options(...)` to pass `async_nats::ConnectOptions`
+  (token/NKey/TLS/cluster) through the facade.
+- `rust-version = "1.85"` (MSRV) now enforced in Cargo metadata.
+
 ## [eventbus-nats 0.1.2] — 2026-05-09
 
 ### Added

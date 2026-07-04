@@ -55,7 +55,7 @@ async fn first_claim_returns_claimed() {
     .unwrap();
 
     let id = MessageId::new();
-    let outcome = store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
+    let outcome = store.try_claim(&id).await.unwrap();
     assert_eq!(outcome, ClaimOutcome::Claimed);
 }
 
@@ -75,8 +75,8 @@ async fn second_claim_on_pending_returns_already_pending() {
     .unwrap();
 
     let id = MessageId::new();
-    store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
-    let outcome = store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
+    store.try_claim(&id).await.unwrap();
+    let outcome = store.try_claim(&id).await.unwrap();
     assert_eq!(outcome, ClaimOutcome::AlreadyPending);
 }
 
@@ -96,10 +96,10 @@ async fn claim_after_mark_done_returns_already_done() {
     .unwrap();
 
     let id = MessageId::new();
-    store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
+    store.try_claim(&id).await.unwrap();
     store.mark_done(&id).await.unwrap();
 
-    let outcome = store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
+    let outcome = store.try_claim(&id).await.unwrap();
     assert_eq!(outcome, ClaimOutcome::AlreadyDone);
 }
 
@@ -119,9 +119,9 @@ async fn claim_after_release_returns_claimed_again() {
     .unwrap();
 
     let id = MessageId::new();
-    store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
+    store.try_claim(&id).await.unwrap();
     store.release(&id).await.unwrap();
 
-    let outcome = store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
+    let outcome = store.try_claim(&id).await.unwrap();
     assert_eq!(outcome, ClaimOutcome::Claimed);
 }

@@ -46,7 +46,6 @@ impl Publisher for NatsPublisher {
             stream: ack.stream.to_string(),
             sequence: ack.sequence,
             duplicate: ack.duplicate,
-            buffered: false,
         })
     }
 }

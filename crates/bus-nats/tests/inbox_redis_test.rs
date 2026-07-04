@@ -36,10 +36,7 @@ async fn first_claim_returns_claimed() {
     let (_c, url) = start_redis().await;
     let store = connect_store(&url, Duration::from_secs(60)).await;
     let id = MessageId::new();
-    assert_eq!(
-        store.try_claim(&id, Duration::from_secs(60)).await.unwrap(),
-        ClaimOutcome::Claimed
-    );
+    assert_eq!(store.try_claim(&id).await.unwrap(), ClaimOutcome::Claimed);
 }
 
 #[tokio::test]
@@ -47,9 +44,9 @@ async fn second_claim_on_pending_returns_already_pending() {
     let (_c, url) = start_redis().await;
     let store = connect_store(&url, Duration::from_secs(60)).await;
     let id = MessageId::new();
-    store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
+    store.try_claim(&id).await.unwrap();
     assert_eq!(
-        store.try_claim(&id, Duration::from_secs(60)).await.unwrap(),
+        store.try_claim(&id).await.unwrap(),
         ClaimOutcome::AlreadyPending
     );
 }
@@ -59,10 +56,10 @@ async fn claim_after_mark_done_returns_already_done() {
     let (_c, url) = start_redis().await;
     let store = connect_store(&url, Duration::from_secs(60)).await;
     let id = MessageId::new();
-    store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
+    store.try_claim(&id).await.unwrap();
     store.mark_done(&id).await.unwrap();
     assert_eq!(
-        store.try_claim(&id, Duration::from_secs(60)).await.unwrap(),
+        store.try_claim(&id).await.unwrap(),
         ClaimOutcome::AlreadyDone
     );
 }
@@ -72,12 +69,9 @@ async fn claim_after_release_returns_claimed_again() {
     let (_c, url) = start_redis().await;
     let store = connect_store(&url, Duration::from_secs(60)).await;
     let id = MessageId::new();
-    store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
+    store.try_claim(&id).await.unwrap();
     store.release(&id).await.unwrap();
-    assert_eq!(
-        store.try_claim(&id, Duration::from_secs(60)).await.unwrap(),
-        ClaimOutcome::Claimed
-    );
+    assert_eq!(store.try_claim(&id).await.unwrap(), ClaimOutcome::Claimed);
 }
 
 #[tokio::test]
@@ -90,9 +84,9 @@ async fn fifty_concurrent_claims_yield_exactly_one_claimed() {
     for _ in 0..50 {
         let s = store.clone();
         let key = id.clone();
-        handles.push(tokio::spawn(async move {
-            s.try_claim(&key, Duration::from_secs(60)).await.unwrap()
-        }));
+        handles.push(tokio::spawn(
+            async move { s.try_claim(&key).await.unwrap() },
+        ));
     }
 
     let mut claimed = 0;
@@ -113,10 +107,7 @@ async fn ttl_expiry_allows_reclaim() {
     let (_c, url) = start_redis().await;
     let store = connect_store(&url, Duration::from_secs(1)).await;
     let id = MessageId::new();
-    store.try_claim(&id, Duration::from_secs(60)).await.unwrap();
+    store.try_claim(&id).await.unwrap();
     tokio::time::sleep(Duration::from_secs(2)).await;
-    assert_eq!(
-        store.try_claim(&id, Duration::from_secs(60)).await.unwrap(),
-        ClaimOutcome::Claimed
-    );
+    assert_eq!(store.try_claim(&id).await.unwrap(), ClaimOutcome::Claimed);
 }

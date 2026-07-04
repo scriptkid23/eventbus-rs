@@ -10,18 +10,19 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version    = "0.1.1"
-edition    = "2024"
-authors    = ["Olivier Taylor <tech@1hoodlabs.xyz>"]
-license    = "MIT OR Apache-2.0"
-repository = "https://github.com/scriptkid23/eventbus-rs"
+version      = "0.2.0"
+edition      = "2024"
+rust-version = "1.85"
+authors      = ["Olivier Taylor <tech@1hoodlabs.xyz>"]
+license      = "MIT OR Apache-2.0"
+repository   = "https://github.com/scriptkid23/eventbus-rs"
 
 [workspace.dependencies]
 # Internal crates: `version` required for `cargo publish` on dependents; keep aligned with `[workspace.package].version`.
-bus-core   = { path = "crates/bus-core", version = "0.1.1" }
-eventbus-macros = { path = "crates/bus-macros", version = "0.1.1" }
-bus-nats   = { path = "crates/bus-nats", version = "0.1.1" }
-eventbus-nats = { path = "crates/event-bus", version = "0.1.2" }
+bus-core   = { path = "crates/bus-core", version = "0.2.0" }
+eventbus-macros = { path = "crates/bus-macros", version = "0.2.0" }
+bus-nats   = { path = "crates/bus-nats", version = "0.2.0" }
+eventbus-nats = { path = "crates/event-bus", version = "0.2.0" }
 
 async-nats   = "0.46"
 async-trait  = "0.1"
@@ -33,7 +34,7 @@ serde_json   = "1"
 thiserror    = "1"
 tokio        = { version = "1.36", features = ["full"] }
 tracing      = "0.1"
-uuid         = { version = "1", features = ["v7", "serde"] }
+uuid         = { version = "1", features = ["v5", "v7", "serde"] }
 # proc-macro deps
 proc-macro2  = "1"
 quote        = "1"

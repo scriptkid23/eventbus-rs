@@ -45,3 +45,5 @@ coverage/
 
 # Git worktrees
 .worktrees/
+.cursor/
+.codegraph/

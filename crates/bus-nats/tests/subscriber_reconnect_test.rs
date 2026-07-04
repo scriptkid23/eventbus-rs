@@ -1,9 +1,8 @@
 use async_trait::async_trait;
-use bus_core::{EventHandler, HandlerCtx, HandlerError, MessageId, Publisher};
-use bus_nats::subscriber::subscribe;
+use bus_core::{EventHandler, HandlerCtx, Publisher, error::HandlerError, id::MessageId};
 use bus_nats::{
     NatsClient, NatsKvIdempotencyConfig, NatsKvIdempotencyStore, NatsPublisher, StreamConfig,
-    SubscribeOptions,
+    SubscribeOptions, subscriber::subscribe,
 };
 use eventbus_macros::Event;
 use serde::{Deserialize, Serialize};
@@ -34,24 +33,23 @@ async fn start_nats() -> (impl Drop, String) {
 }
 
 #[derive(Debug, Serialize, Deserialize, Event)]
-#[event(subject = "events.test.created")]
-struct TestEvent {
+#[event(subject = "events.reconnect.created")]
+struct ReconnectEvent {
     id: MessageId,
-    value: u32,
 }
 
 struct CountingHandler(Arc<AtomicU32>);
 
 #[async_trait]
-impl EventHandler<TestEvent> for CountingHandler {
-    async fn handle(&self, _ctx: HandlerCtx, _evt: TestEvent) -> Result<(), HandlerError> {
+impl EventHandler<ReconnectEvent> for CountingHandler {
+    async fn handle(&self, _ctx: HandlerCtx, _evt: ReconnectEvent) -> Result<(), HandlerError> {
         self.0.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
 }
 
 #[tokio::test]
-async fn duplicate_event_handled_once() {
+async fn subscriber_recovers_after_consumer_deleted() {
     let (_c, url) = start_nats().await;
     let cfg = StreamConfig {
         num_replicas: 1,
@@ -64,7 +62,6 @@ async fn duplicate_event_handled_once() {
             client.jetstream().clone(),
             NatsKvIdempotencyConfig {
                 num_replicas: 1,
-                max_age: Duration::from_secs(60),
                 ..Default::default()
             },
         )
@@ -76,29 +73,43 @@ async fn duplicate_event_handled_once() {
     let handler = Arc::new(CountingHandler(counter.clone()));
 
     let opts = SubscribeOptions {
-        durable: "test-worker".into(),
-        filter: "events.test.>".into(),
-        concurrency: 1,
+        durable: "reconnect-worker".into(),
+        filter: "events.reconnect.>".into(),
         ..Default::default()
     };
 
-    let _handle = subscribe::<TestEvent, _, _>(client, opts, handler, store)
+    let _handle = subscribe::<ReconnectEvent, _, _>(client.clone(), opts, handler, store)
         .await
         .unwrap();
 
-    // Publish same event twice (same message_id) — JetStream dedup drops the second
-    let evt = TestEvent {
-        id: MessageId::new(),
-        value: 42,
-    };
-    publisher.publish(&evt).await.unwrap();
-    publisher.publish(&evt).await.unwrap();
+    // Sanity: baseline delivery works.
+    publisher
+        .publish(&ReconnectEvent {
+            id: MessageId::new(),
+        })
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    assert_eq!(counter.load(Ordering::SeqCst), 1);
 
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    // Delete the durable consumer server-side — the message stream ends.
+    let stream = client.jetstream().get_stream("EVENTS").await.unwrap();
+    stream.delete_consumer("reconnect-worker").await.unwrap();
+
+    // Give the subscriber time to notice and reconnect (backoff starts at 200ms).
+    tokio::time::sleep(Duration::from_secs(3)).await;
+
+    publisher
+        .publish(&ReconnectEvent {
+            id: MessageId::new(),
+        })
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_secs(3)).await;
 
     assert_eq!(
         counter.load(Ordering::SeqCst),
-        1,
-        "handler must be called exactly once"
+        2,
+        "subscriber must recreate the consumer and keep delivering"
     );
 }

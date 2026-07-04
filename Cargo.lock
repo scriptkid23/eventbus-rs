@@ -192,7 +192,7 @@ checksum = "5d20789868f4b01b2f2caec9f5c4e0213b41e3e5702a50157d699ae31ced2fcb"
 
 [[package]]
 name = "bus-core"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "serde",
@@ -204,7 +204,7 @@ dependencies = [
 
 [[package]]
 name = "bus-nats"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -531,7 +531,7 @@ dependencies = [
 
 [[package]]
 name = "eventbus-macros"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "bus-core",
  "proc-macro2",
@@ -544,7 +544,7 @@ dependencies = [
 
 [[package]]
 name = "eventbus-nats"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "bus-core",
@@ -2497,6 +2497,7 @@ dependencies = [
  "getrandom 0.4.2",
  "js-sys",
  "serde_core",
+ "sha1_smol",
  "wasm-bindgen",
 ]
 

@@ -3,11 +3,12 @@ name        = "bus-nats"
 description = "NATS JetStream backend for eventbus-rs"
 keywords    = ["nats", "jetstream", "eventbus", "async"]
 categories  = ["asynchronous", "network-programming"]
-version.workspace    = true
-edition.workspace    = true
-authors.workspace    = true
-license.workspace    = true
-repository.workspace = true
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
 
 [features]
 default       = ["nats-kv-inbox"]

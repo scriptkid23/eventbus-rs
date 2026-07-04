@@ -21,8 +21,7 @@ pub struct NatsKvIdempotencyConfig {
     /// Number of replicas. Default: 1 (single-node dev). For production set to
     /// match your stream's replica count (typically 3).
     pub num_replicas: usize,
-    /// Bucket-level TTL applied uniformly to every key. The per-call `ttl`
-    /// argument to `try_claim` is ignored (matches v0.1.0 behaviour).
+    /// Bucket-level TTL applied uniformly to every key.
     pub max_age: Duration,
 }
 
@@ -68,7 +67,7 @@ impl NatsKvIdempotencyStore {
 
 #[async_trait]
 impl IdempotencyStore for NatsKvIdempotencyStore {
-    async fn try_claim(&self, key: &MessageId, _ttl: Duration) -> Result<ClaimOutcome, BusError> {
+    async fn try_claim(&self, key: &MessageId) -> Result<ClaimOutcome, BusError> {
         let key_str = key.to_string();
 
         match self

@@ -1,6 +1,5 @@
 use crate::{error::BusError, id::MessageId};
 use async_trait::async_trait;
-use std::time::Duration;
 
 /// Result of a `try_claim` call.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,7 +25,10 @@ pub enum ClaimOutcome {
 pub trait IdempotencyStore: Send + Sync {
     /// State-aware claim. Atomically inserts the key in `pending` state if
     /// absent, otherwise reports the existing state.
-    async fn try_claim(&self, key: &MessageId, ttl: Duration) -> Result<ClaimOutcome, BusError>;
+    ///
+    /// Key expiry is a property of the store (e.g. bucket `max_age` for NATS
+    /// KV, config `ttl` for Redis), not of individual claims.
+    async fn try_claim(&self, key: &MessageId) -> Result<ClaimOutcome, BusError>;
 
     /// Mark a previously claimed key as successfully processed.
     async fn mark_done(&self, key: &MessageId) -> Result<(), BusError>;

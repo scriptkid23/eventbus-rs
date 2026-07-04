@@ -74,7 +74,7 @@ impl RedisIdempotencyStore {
 
 #[async_trait]
 impl IdempotencyStore for RedisIdempotencyStore {
-    async fn try_claim(&self, key: &MessageId, _ttl: Duration) -> Result<ClaimOutcome, BusError> {
+    async fn try_claim(&self, key: &MessageId) -> Result<ClaimOutcome, BusError> {
         let full_key = self.full_key(key);
         let mut conn = self.conn.clone();
         let outcome: String = self

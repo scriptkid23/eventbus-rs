@@ -1,6 +1,6 @@
 use bus_core::{MessageId, Publisher};
-use eventbus_macros::Event;
 use bus_nats::{NatsClient, NatsPublisher, StreamConfig};
+use eventbus_macros::Event;
 use serde::{Deserialize, Serialize};
 use testcontainers::{
     GenericImage, ImageExt,
@@ -47,7 +47,6 @@ async fn publish_returns_receipt_with_sequence() {
     let receipt = publisher.publish(&evt).await.unwrap();
 
     assert!(!receipt.duplicate);
-    assert!(!receipt.buffered);
     assert!(receipt.sequence > 0);
     assert_eq!(receipt.stream, "EVENTS");
 }

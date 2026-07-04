@@ -23,13 +23,6 @@ fn bus_error_from_handler_error() {
 }
 
 #[test]
-fn bus_error_nats_unavailable_display() {
-    let bus_error = BusError::NatsUnavailable;
-
-    assert_eq!(bus_error.to_string(), "nats unavailable");
-}
-
-#[test]
 fn bus_error_from_serde_json() {
     let json_error = serde_json::from_str::<serde_json::Value>("not json").unwrap_err();
     let bus_error: BusError = json_error.into();

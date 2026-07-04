@@ -21,9 +21,6 @@ pub enum BusError {
     #[error("publish: {0}")]
     Publish(String),
 
-    #[error("outbox: {0}")]
-    Outbox(String),
-
     #[error("idempotency: {0}")]
     Idempotency(String),
 
@@ -32,7 +29,4 @@ pub enum BusError {
 
     #[error("handler: {0}")]
     Handler(#[from] HandlerError),
-
-    #[error("nats unavailable")]
-    NatsUnavailable,
 }

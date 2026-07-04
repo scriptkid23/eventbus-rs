@@ -8,9 +8,6 @@ pub mod publisher;
 pub mod stream;
 pub mod subscriber;
 
-#[cfg(test)]
-pub(crate) mod testing;
-
 pub use client::NatsClient;
 pub use dlq::{
     DEFAULT_DLQ_DUPLICATE_WINDOW, DEFAULT_DLQ_MAX_AGE, DEFAULT_DLQ_REPLICAS, DlqConfig, DlqOptions,

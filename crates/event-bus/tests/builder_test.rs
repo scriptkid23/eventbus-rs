@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use bus_core::{EventHandler, HandlerCtx, HandlerError, MessageId};
-use eventbus_macros::Event;
 use bus_nats::{
     DlqConfig, NatsKvIdempotencyConfig, NatsKvIdempotencyStore, StreamConfig, SubscribeOptions,
 };
+use eventbus_macros::Event;
 use eventbus_nats::EventBusBuilder;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -12,6 +12,30 @@ use testcontainers::{
     core::{IntoContainerPort, WaitFor},
     runners::AsyncRunner,
 };
+
+struct NoopStore;
+
+#[async_trait]
+impl bus_core::idempotency::IdempotencyStore for NoopStore {
+    async fn try_claim(
+        &self,
+        _key: &bus_core::id::MessageId,
+    ) -> Result<bus_core::idempotency::ClaimOutcome, bus_core::error::BusError> {
+        Ok(bus_core::idempotency::ClaimOutcome::Claimed)
+    }
+    async fn mark_done(
+        &self,
+        _key: &bus_core::id::MessageId,
+    ) -> Result<(), bus_core::error::BusError> {
+        Ok(())
+    }
+    async fn release(
+        &self,
+        _key: &bus_core::id::MessageId,
+    ) -> Result<(), bus_core::error::BusError> {
+        Ok(())
+    }
+}
 
 async fn start_nats() -> (ContainerAsync<GenericImage>, String) {
     let c = GenericImage::new("nats", "2.10-alpine")
@@ -156,4 +180,34 @@ async fn builder_with_dlq_auto_wires_per_consumer_dlq_stream() {
         .await;
 
     assert!(dlq_stream.is_ok());
+}
+
+#[tokio::test]
+async fn builder_passes_connect_options_for_auth() {
+    // NATS requiring token auth: default connect must fail, token connect must succeed.
+    let c = GenericImage::new("nats", "2.10-alpine")
+        .with_exposed_port(4222.tcp())
+        .with_wait_for(WaitFor::message_on_stderr("Server is ready"))
+        .with_cmd(["-js", "--auth", "s3cr3t"])
+        .start()
+        .await
+        .unwrap();
+    let host = c.get_host().await.unwrap();
+    let port = c.get_host_port_ipv4(4222).await.unwrap();
+    let url = format!("nats://{}:{}", host, port);
+
+    let failed = EventBusBuilder::new()
+        .url(&url)
+        .idempotency(NoopStore)
+        .build()
+        .await;
+    assert!(failed.is_err(), "connect without token must fail");
+
+    let bus = EventBusBuilder::new()
+        .url(&url)
+        .connect_options(eventbus_nats::ConnectOptions::with_token("s3cr3t".into()))
+        .idempotency(NoopStore)
+        .build()
+        .await;
+    assert!(bus.is_ok(), "connect with token must succeed");
 }

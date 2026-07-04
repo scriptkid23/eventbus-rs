@@ -3,11 +3,12 @@ name        = "eventbus-nats"
 description = "Production-grade event bus for Rust — NATS JetStream with effectively-once semantics"
 keywords    = ["nats", "eventbus", "messaging", "outbox", "idempotency"]
 categories  = ["asynchronous", "network-programming"]
-version     = "0.1.2"
-edition.workspace    = true
-authors.workspace    = true
-license.workspace    = true
-repository.workspace = true
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
 
 [features]
 default       = ["macros", "nats-kv-inbox"]

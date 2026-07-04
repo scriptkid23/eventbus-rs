@@ -2,7 +2,6 @@ use async_nats::jetstream;
 use async_trait::async_trait;
 use bus_core::idempotency::IdempotencyStore;
 use bus_core::{EventHandler, HandlerCtx, HandlerError, MessageId, Publisher};
-use eventbus_macros::Event;
 use bus_nats::dlq::{
     DEFAULT_DLQ_DUPLICATE_WINDOW, DEFAULT_DLQ_MAX_AGE, DEFAULT_DLQ_REPLICAS, DlqConfig, DlqOptions,
     FailureInfo, build_dlq_headers, dlq_stream_name, dlq_subject, ensure_dlq_stream,
@@ -14,6 +13,7 @@ use bus_nats::{
     SubscribeOptions,
 };
 use bytes::Bytes;
+use eventbus_macros::Event;
 use serde::{Deserialize, Serialize};
 use std::{
     sync::{
@@ -725,10 +725,7 @@ async fn already_done_message_is_acked_without_invoking_handler() {
     // event carrying this id in `Nats-Msg-Id`, try_claim must return
     // AlreadyDone and the handler must not run.
     let msg_id = MessageId::new();
-    store
-        .try_claim(&msg_id, Duration::from_secs(60))
-        .await
-        .unwrap();
+    store.try_claim(&msg_id).await.unwrap();
     store.mark_done(&msg_id).await.unwrap();
 
     let counter = Arc::new(AtomicU32::new(0));

@@ -4,7 +4,7 @@
 
 **A typed async event bus for Rust — NATS JetStream with idempotent inbox + DLQ.**
 
-[CI](https://github.com/1hoodlabs/eventbus-rs/actions)
+[CI](https://github.com/scriptkid23/eventbus-rs/actions)
 [Crates.io](https://crates.io/crates/eventbus-nats)
 [Docs.rs](https://docs.rs/eventbus-nats)
 [MSRV](https://blog.rust-lang.org/)
@@ -69,8 +69,8 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-eventbus-nats = "0.1.2"
-bus-core      = "0.1.1"
+eventbus-nats = "0.2.0"
+bus-core      = "0.2.0"
 
 serde       = { version = "1", features = ["derive"] }
 tokio       = { version = "1", features = ["full"] }
@@ -99,22 +99,22 @@ That's it — head to [Quick start](#quick-start).
 **Use Redis for idempotency instead of NATS KV:**
 
 ```toml
-eventbus-nats = { version = "0.1.2", features = ["macros", "nats-kv-inbox", "redis-inbox"] }
-bus-core      = "0.1.1"
+eventbus-nats = { version = "0.2.0", features = ["macros", "nats-kv-inbox", "redis-inbox"] }
+bus-core      = "0.2.0"
 ```
 
 **Skip the derive macro (manual `impl Event`):**
 
 ```toml
-eventbus-nats = { version = "0.1.2", default-features = false, features = ["nats-kv-inbox"] }
+eventbus-nats = { version = "0.2.0", default-features = false, features = ["nats-kv-inbox"] }
 ```
 
 **Pull from Git instead of crates.io** (tag pinning, `package = "…"` is required because this repo is a Cargo workspace):
 
 ```toml
 [dependencies]
-eventbus-nats = { git = "https://github.com/scriptkid23/eventbus-rs", tag = "v0.1.2", package = "eventbus-nats" }
-bus-core      = { git = "https://github.com/scriptkid23/eventbus-rs", tag = "v0.1.2", package = "bus-core" }
+eventbus-nats = { git = "https://github.com/scriptkid23/eventbus-rs", tag = "v0.2.0", package = "eventbus-nats" }
+bus-core      = { git = "https://github.com/scriptkid23/eventbus-rs", tag = "v0.2.0", package = "bus-core" }
 ```
 
 ### Requirements
@@ -391,11 +391,11 @@ Rule of thumb:
 
 ```rust
 tokio::signal::ctrl_c().await?;
-drop(sub);              // stop the consumer loop, abort in-flight worker tasks
-bus.shutdown().await?;  // drain the NATS connection
+sub.drain(Duration::from_secs(30)).await;  // stop pulling, wait for in-flight handlers
+bus.shutdown().await?;                     // drop the NATS client (flushes on drop)
 ```
 
-Dropping a `SubscriptionHandle` aborts both the outer message loop and every spawned per-message worker, so SIGTERM cleanup is bounded by `ack_wait`.
+Call [`SubscriptionHandle::drain`] before dropping the bus. `drain` stops the consumer loop and waits for in-flight handlers up to the timeout; on timeout it aborts remaining workers. Dropping a `SubscriptionHandle` without draining aborts immediately — un-acked messages redeliver after `ack_wait`.
 
 ### 8. Observability
 
@@ -427,7 +427,7 @@ let _advisory = spawn_jetstream_advisory_logger(
 Minimal install (no derive macro, NATS KV only):
 
 ```toml
-eventbus-nats = { version = "0.1.2", default-features = false, features = ["nats-kv-inbox"] }
+eventbus-nats = { version = "0.2.0", default-features = false, features = ["nats-kv-inbox"] }
 ```
 
 ---
@@ -479,7 +479,7 @@ For the current component diagrams, see `[docs/diagrams/](docs/diagrams/)`.
 | NATS KV idempotency store *(default)*   | `bus-nats` (`nats-kv-inbox`) | ✅ Shipped           |
 | Redis idempotency store                 | `bus-nats` (`redis-inbox`)   | ✅ Shipped           |
 | `EventBus` facade + builder             | `eventbus-nats`              | ✅ Shipped           |
-| `crates.io` packages                    | `bus-core`, `bus-nats`, `eventbus-macros` `0.1.1` · `eventbus-nats` `0.1.2` | ✅ Published         |
+| `crates.io` packages                    | `bus-core`, `bus-nats`, `eventbus-macros`, `eventbus-nats` `0.2.0` | ✅ Published         |
 
 
 ---

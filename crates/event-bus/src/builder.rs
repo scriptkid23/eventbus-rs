@@ -7,7 +7,7 @@ pub struct EventBusBuilder {
     url: Option<String>,
     stream_cfg: StreamConfig,
     idempotency: Option<Arc<dyn IdempotencyStore>>,
-    _otel: bool,
+    connect_options: Option<bus_nats::ConnectOptions>,
     dlq: Option<DlqConfig>,
 }
 
@@ -17,7 +17,7 @@ impl EventBusBuilder {
             url: None,
             stream_cfg: StreamConfig::default(),
             idempotency: None,
-            _otel: false,
+            connect_options: None,
             dlq: None,
         }
     }
@@ -53,8 +53,10 @@ impl EventBusBuilder {
         self
     }
 
-    pub fn with_otel(mut self) -> Self {
-        self._otel = true;
+    /// Custom NATS connection options (auth token, NKey, TLS, cluster URLs...).
+    /// Defaults to `ConnectOptions::default()` when not set.
+    pub fn connect_options(mut self, options: bus_nats::ConnectOptions) -> Self {
+        self.connect_options = Some(options);
         self
     }
 
@@ -75,7 +77,12 @@ impl EventBusBuilder {
             )
         })?;
 
-        let client = NatsClient::connect(&url, &self.stream_cfg).await?;
+        let client = match self.connect_options {
+            Some(options) => {
+                NatsClient::connect_with_options(&url, options, &self.stream_cfg).await?
+            }
+            None => NatsClient::connect(&url, &self.stream_cfg).await?,
+        };
 
         Ok(EventBus::new(client, idempotency, self.dlq))
     }

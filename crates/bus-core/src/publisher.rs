@@ -12,9 +12,6 @@ pub struct PubReceipt {
 
     /// True when backend deduplication suppressed this publish.
     pub duplicate: bool,
-
-    /// True when the message was stored locally instead of published remotely.
-    pub buffered: bool,
 }
 
 /// Publishes events to the event bus.

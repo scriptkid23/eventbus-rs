@@ -3,11 +3,12 @@ name = "eventbus-macros"
 description = "Derive macros for eventbus-rs"
 keywords = ["nats", "eventbus", "macros", "derive"]
 categories = ["asynchronous", "network-programming"]
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
-repository.workspace = true
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
 
 [lib]
 proc-macro = true

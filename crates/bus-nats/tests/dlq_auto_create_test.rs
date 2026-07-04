@@ -1,12 +1,12 @@
 use async_trait::async_trait;
 use bus_core::{EventHandler, HandlerCtx, HandlerError, MessageId, Publisher};
-use eventbus_macros::Event;
 use bus_nats::dlq::{DlqConfig, DlqOptions};
 use bus_nats::subscriber::subscribe;
 use bus_nats::{
     NatsClient, NatsKvIdempotencyConfig, NatsKvIdempotencyStore, NatsPublisher, StreamConfig,
     SubscribeOptions,
 };
+use eventbus_macros::Event;
 use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
 use testcontainers::{

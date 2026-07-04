@@ -3,11 +3,12 @@ name = "bus-core"
 description = "Core traits and types for eventbus-rs with zero NATS dependencies"
 keywords = ["nats", "eventbus", "messaging", "async"]
 categories = ["asynchronous", "network-programming"]
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
-repository.workspace = true
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
 
 [dependencies]
 async-trait.workspace = true
